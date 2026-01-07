@@ -1,4 +1,4 @@
-// api/client.js
+// bindu/ui/static/js/api/client.js
 import { CONFIG } from '../config.js';
 
 export class ApiError extends Error {
@@ -26,13 +26,35 @@ class ApiClient {
       CONFIG.TIMEOUTS.REQUEST_TIMEOUT
     );
 
+    // Destructure special options so they don't get passed to fetch directly
+    const { token, paymentToken, headers = {}, ...fetchOptions } = options;
+
+    // 1. Build Headers
+    const finalHeaders = {
+        'Content-Type': 'application/json',
+        ...headers
+    };
+
+    // 2. Inject Auth Token
+    if (token) {
+        const cleanToken = token.trim();
+        if (/^[\x00-\x7F]*$/.test(cleanToken)) {
+            finalHeaders['Authorization'] = `Bearer ${cleanToken}`;
+        }
+    }
+
+    // 3. Inject Payment Token
+    if (paymentToken) {
+        const cleanToken = paymentToken.trim();
+        if (/^[\x00-\x7F]*$/.test(cleanToken)) {
+            finalHeaders['X-PAYMENT'] = cleanToken;
+        }
+    }
+
     try {
       const response = await fetch(url, {
-        ...options,
-        headers: {
-          'Content-Type': 'application/json',
-          ...options.headers
-        },
+        ...fetchOptions,
+        headers: finalHeaders,
         signal: controller.signal
       });
 
@@ -40,12 +62,7 @@ class ApiClient {
 
       if (!response.ok) {
         let payload = null;
-
-        try {
-          payload = await response.json();
-        } catch {
-          /* ignore non-JSON body */
-        }
+        try { payload = await response.json(); } catch { /* ignore */ }
 
         throw new ApiError(
           payload?.message || response.statusText,
@@ -54,7 +71,6 @@ class ApiClient {
         );
       }
 
-      // Safely parse JSON
       try {
         return await response.json();
       } catch {
@@ -63,22 +79,17 @@ class ApiClient {
 
     } catch (error) {
       clearTimeout(timeoutId);
-
-      if (error.name === 'AbortError') {
-        throw new ApiError('Request timeout');
-      }
-
-      if (error instanceof ApiError) {
-        throw error;
-      }
-
+      if (error.name === 'AbortError') throw new ApiError('Request timeout');
+      if (error instanceof ApiError) throw error;
       throw new ApiError(error.message || 'Network error');
     }
   }
 
-  async jsonRpcRequest(method, params = {}, id = crypto.randomUUID()) {
+  // Updated to accept options (4th argument)
+  async jsonRpcRequest(method, params = {}, id = crypto.randomUUID(), options = {}) {
     const response = await this.request(CONFIG.ENDPOINTS.JSON_RPC, {
       method: 'POST',
+      ...options, // Pass token/paymentToken down to request
       body: JSON.stringify({
         jsonrpc: '2.0',
         method,
@@ -96,40 +107,6 @@ class ApiClient {
     }
 
     return response?.result ?? null;
-  }
-
-  addAuthHeaders(options = {}, authToken) {
-    if (!authToken) return options;
-
-    const token = authToken.trim();
-    if (!/^[\x00-\x7F]*$/.test(token)) {
-      throw new ApiError('Invalid auth token format');
-    }
-
-    return {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${token}`
-      }
-    };
-  }
-
-  addPaymentHeaders(options = {}, paymentToken) {
-    if (!paymentToken) return options;
-
-    const token = paymentToken.trim();
-    if (!/^[\x00-\x7F]*$/.test(token)) {
-      throw new ApiError('Invalid payment token format');
-    }
-
-    return {
-      ...options,
-      headers: {
-        ...options.headers,
-        'X-PAYMENT': token
-      }
-    };
   }
 }
 
