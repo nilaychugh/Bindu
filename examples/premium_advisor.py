@@ -1,16 +1,4 @@
-"""
-Premium Advisor Agent
----------------------
-This example demonstrates the "Gatekeeper" capability of Bindu.
-This agent is configured with an strict execution cost. The Bindu middleware
-will intercept all requests and return a 402 Payment Required response 
-unless a valid payment proof is provided.
-
-It demonstrates:
-1. Configuring `execution_cost` in bindufy
-2. The X402 payment flow (Payment Required -> Invoice -> Service)
-3. Using the `pay_to_address` for settlement
-"""
+"""A premium agent example that demonstrates X402 payment gating."""
 
 from bindu.penguin.bindufy import bindufy
 import logging
