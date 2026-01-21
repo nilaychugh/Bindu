@@ -75,6 +75,7 @@ Before installing Bindu, ensure you have:
 
 - **Python 3.12 or higher** - [Download here](https://www.python.org/downloads/)
 - **UV package manager** - [Installation guide](https://github.com/astral-sh/uv)
+- **Note**: You will need an OPENROUTER_API_KEY (or OpenAI key) set in your environment variables to run the agent successfully.
 
 ### Verify Your Setup
 
