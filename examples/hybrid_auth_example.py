@@ -40,9 +40,7 @@ async def example_1_using_hybrid_auth_client():
             "jsonrpc": "2.0",
             "method": "message/send",
             "params": {
-                "messages": [
-                    {"role": "user", "content": "Hello from hybrid auth!"}
-                ]
+                "messages": [{"role": "user", "content": "Hello from hybrid auth!"}]
             },
             "id": 1,
         },
@@ -64,9 +62,7 @@ async def example_2_agent_to_agent_communication():
         from_credentials_dir=Path(".bindu"),
         from_did_extension=did_extension,
         to_agent_url="http://localhost:3774/",
-        messages=[
-            {"role": "user", "content": "Hello Agent B, this is Agent A"}
-        ],
+        messages=[{"role": "user", "content": "Hello Agent B, this is Agent A"}],
     )
 
     print(f"Agent B Response: {response}")
@@ -75,8 +71,6 @@ async def example_2_agent_to_agent_communication():
 async def example_3_manual_request_signing():
     """Example 3: Manual request signing for custom scenarios."""
     print("\n=== Example 3: Manual Request Signing ===\n")
-
-    import json
 
     import aiohttp
 
@@ -186,9 +180,7 @@ async def example_4_verify_security_properties():
         max_age_seconds=300,  # 5 minute tolerance
     )
 
-    print(
-        f"❌ Old request verification: {'VALID' if is_valid_old else 'INVALID'}"
-    )
+    print(f"❌ Old request verification: {'VALID' if is_valid_old else 'INVALID'}")
     print("   (As expected - replay attack prevented!)")
 
 
@@ -207,7 +199,7 @@ async def example_5_monitoring_authentication():
 
         user_info = request.state.user
 
-        print(f"✅ Request authenticated")
+        print("✅ Request authenticated")
         print(f"   Client ID: {user_info.get('client_id', 'N/A')}")
         print(f"   Scopes: {user_info.get('scope', [])}")
         print(f"   M2M: {user_info.get('is_m2m', False)}")
@@ -215,7 +207,7 @@ async def example_5_monitoring_authentication():
         # Check if DID signature was verified
         signature_info = user_info.get("signature_info", {})
         if signature_info.get("did_verified"):
-            print(f"   ✅ DID Signature: VERIFIED")
+            print("   ✅ DID Signature: VERIFIED")
             print(f"   DID: {signature_info.get('did', 'N/A')[:40]}...")
         else:
             reason = signature_info.get("reason", "not_provided")

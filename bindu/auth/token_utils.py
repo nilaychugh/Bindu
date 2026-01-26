@@ -11,7 +11,7 @@ from typing import Optional
 
 import aiohttp
 
-from bindu.auth.hydra_registration import AgentCredentials, load_agent_credentials
+from bindu.auth.hydra_registration import load_agent_credentials
 from bindu.settings import app_settings
 from bindu.utils.logging import get_logger
 

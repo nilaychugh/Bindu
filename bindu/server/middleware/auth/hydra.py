@@ -29,7 +29,7 @@ class HydraMiddleware(AuthMiddleware):
     """Hydra-specific authentication middleware with hybrid OAuth2 + DID authentication.
 
     This middleware implements dual-layer authentication:
-    
+
     Layer 1 - OAuth2 Token Validation:
     - Token active status via Hydra Admin API
     - Token expiration (exp claim)
@@ -40,7 +40,7 @@ class HydraMiddleware(AuthMiddleware):
     - Cryptographic signature verification using DID public key
     - Timestamp validation to prevent replay attacks
     - Request body integrity verification
-    
+
     Supports both user authentication (authorization_code) and M2M (client_credentials).
     """
 
@@ -206,7 +206,7 @@ class HydraMiddleware(AuthMiddleware):
         """
         # Extract DID signature headers
         signature_data = extract_signature_headers(dict(request.headers))
-        
+
         if not signature_data:
             # No DID signature headers present - this is optional for backward compatibility
             logger.debug("No DID signature headers found - skipping DID verification")
@@ -226,7 +226,7 @@ class HydraMiddleware(AuthMiddleware):
 
         # Get client's public key from Hydra metadata
         public_key = await get_public_key_from_hydra(client_did, self.hydra_client)
-        
+
         if not public_key:
             logger.warning(f"No public key found for client: {client_did}")
             # If client has no public key, skip DID verification
@@ -281,7 +281,7 @@ class HydraMiddleware(AuthMiddleware):
             Response from endpoint or error response
         """
         from starlette.responses import JSONResponse
-        
+
         path = request.url.path
 
         # Skip authentication for public endpoints
@@ -309,16 +309,19 @@ class HydraMiddleware(AuthMiddleware):
             logger.error(f"Failed to extract user info for {path}: {e}")
             from bindu.utils.request_utils import extract_error_fields
             from bindu.server.middleware.auth.errors import InvalidTokenError
+
             code, message = extract_error_fields(InvalidTokenError)
             return jsonrpc_error(code=code, message=message, status=401)
 
         # Layer 2: Verify DID signature (if present)
         client_did = user_info.get("client_id")
-        
+
         # Check if client uses DID-based authentication
         if client_did and client_did.startswith("did:"):
-            is_valid, signature_info = await self._verify_did_signature(request, client_did)
-            
+            is_valid, signature_info = await self._verify_did_signature(
+                request, client_did
+            )
+
             if not is_valid:
                 logger.warning(f"DID signature verification failed for {client_did}")
                 return JSONResponse(
@@ -328,7 +331,7 @@ class HydraMiddleware(AuthMiddleware):
                     },
                     status_code=403,
                 )
-            
+
             # Add signature info to user context
             user_info["signature_info"] = signature_info
             logger.debug(f"DID verification result: {signature_info}")

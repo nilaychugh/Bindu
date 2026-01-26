@@ -167,11 +167,6 @@ class BinduApplication(Starlette):
             skill_documentation_endpoint,
             skills_list_endpoint,
             metrics_endpoint,
-            create_oauth_client_endpoint,
-            list_oauth_clients_endpoint,
-            get_oauth_client_endpoint,
-            delete_oauth_client_endpoint,
-            get_token_endpoint,
         )
 
         # Add health endpoint import
@@ -657,7 +652,9 @@ class BinduApplication(Starlette):
             if app_settings.hydra.enabled:
                 return Middleware(HydraMiddleware, auth_config=app_settings.hydra)
             else:
-                logger.warning("Hydra provider selected but hydra.enabled=False, using default config")
+                logger.warning(
+                    "Hydra provider selected but hydra.enabled=False, using default config"
+                )
                 return Middleware(HydraMiddleware, auth_config=app_settings.hydra)
         else:
             logger.error(f"Unknown authentication provider: {provider}")

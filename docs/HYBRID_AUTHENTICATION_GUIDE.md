@@ -281,7 +281,7 @@ max_age_seconds = 300
 def check_auth(request):
     user = request.state.user
     sig_info = user.get("signature_info", {})
-    
+
     if sig_info.get("did_verified"):
         logger.info("✅ Full hybrid auth (OAuth + DID)")
     else:

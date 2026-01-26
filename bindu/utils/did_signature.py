@@ -6,7 +6,6 @@ DID-based cryptographic signatures for enhanced security.
 
 from __future__ import annotations as _annotations
 
-import base64
 import json
 import time
 from typing import Any, Dict, Optional
@@ -17,9 +16,7 @@ logger = get_logger("bindu.utils.did_signature")
 
 
 def create_signature_payload(
-    body: str | bytes | dict,
-    did: str,
-    timestamp: Optional[int] = None
+    body: str | bytes | dict, did: str, timestamp: Optional[int] = None
 ) -> Dict[str, Any]:
     """Create signature payload for request signing.
 
@@ -42,18 +39,11 @@ def create_signature_payload(
     else:
         body_str = str(body)
 
-    return {
-        "body": body_str,
-        "timestamp": timestamp,
-        "did": did
-    }
+    return {"body": body_str, "timestamp": timestamp, "did": did}
 
 
 def sign_request(
-    body: str | bytes | dict,
-    did: str,
-    did_extension,
-    timestamp: Optional[int] = None
+    body: str | bytes | dict, did: str, did_extension, timestamp: Optional[int] = None
 ) -> Dict[str, str]:
     """Sign a request with DID private key.
 
@@ -76,7 +66,7 @@ def sign_request(
     return {
         "X-DID": did,
         "X-DID-Signature": signature,
-        "X-DID-Timestamp": str(payload["timestamp"])
+        "X-DID-Timestamp": str(payload["timestamp"]),
     }
 
 
@@ -86,7 +76,7 @@ def verify_signature(
     did: str,
     timestamp: int,
     public_key: str,
-    max_age_seconds: int = 300
+    max_age_seconds: int = 300,
 ) -> bool:
     """Verify DID signature on a request.
 
@@ -117,13 +107,11 @@ def verify_signature(
 
         # Verify signature with public key
         from bindu.extensions.did import DIDExtension
-        
+
         # Create temporary DID extension for verification
         # We only need the public key for verification
         is_valid = DIDExtension.verify_signature_with_public_key(
-            message=payload_str,
-            signature=signature,
-            public_key=public_key
+            message=payload_str, signature=signature, public_key=public_key
         )
 
         if not is_valid:
@@ -158,11 +146,7 @@ def extract_signature_headers(headers: dict) -> Optional[Dict[str, Any]]:
         logger.warning(f"Invalid timestamp format: {timestamp_str}")
         return None
 
-    return {
-        "did": did,
-        "signature": signature,
-        "timestamp": timestamp
-    }
+    return {"did": did, "signature": signature, "timestamp": timestamp}
 
 
 def validate_timestamp(timestamp: int, max_age_seconds: int = 300) -> bool:
@@ -179,9 +163,7 @@ def validate_timestamp(timestamp: int, max_age_seconds: int = 300) -> bool:
     age = abs(current_time - timestamp)
 
     if age > max_age_seconds:
-        logger.warning(
-            f"Request timestamp expired: age={age}s, max={max_age_seconds}s"
-        )
+        logger.warning(f"Request timestamp expired: age={age}s, max={max_age_seconds}s")
         return False
 
     return True
@@ -195,7 +177,7 @@ async def get_public_key_from_hydra(client_did: str, hydra_client) -> Optional[s
         hydra_client: HydraClient instance
 
     Returns:
-        Public key (base58 encoded) or None
+        Public key (multibase encoded) or None
     """
     try:
         client = await hydra_client.get_oauth_client(client_did)
@@ -216,10 +198,7 @@ async def get_public_key_from_hydra(client_did: str, hydra_client) -> Optional[s
 
 
 def create_signed_request_headers(
-    body: str | bytes | dict,
-    did: str,
-    did_extension,
-    bearer_token: str
+    body: str | bytes | dict, did: str, did_extension, bearer_token: str
 ) -> Dict[str, str]:
     """Create complete headers for signed request with OAuth token.
 
@@ -239,7 +218,7 @@ def create_signed_request_headers(
     headers = {
         "Authorization": f"Bearer {bearer_token}",
         "Content-Type": "application/json",
-        **signature_headers
+        **signature_headers,
     }
 
     return headers

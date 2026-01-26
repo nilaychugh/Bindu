@@ -99,9 +99,7 @@ def save_agent_credentials(
     creds_file.chmod(0o600)
 
     logger.info(f"✅ OAuth credentials saved to {creds_file}")
-    logger.warning(
-        f"⚠️  Keep {creds_file} secure and add to .gitignore!"
-    )
+    logger.warning(f"⚠️  Keep {creds_file} secure and add to .gitignore!")
 
 
 def load_agent_credentials(
@@ -196,9 +194,13 @@ async def register_agent_in_hydra(
                 try:
                     public_key = did_extension.public_key_base58
                     key_type = "Ed25519"
-                    logger.info(f"Extracted public key (base58) from DID extension for {did}")
+                    logger.info(
+                        f"Extracted public key (base58) from DID extension for {did}"
+                    )
                 except Exception as e:
-                    logger.warning(f"Failed to extract public key from DID extension: {e}")
+                    logger.warning(
+                        f"Failed to extract public key from DID extension: {e}"
+                    )
 
             # Create new OAuth client with DID metadata
             client_data = {
@@ -215,7 +217,9 @@ async def register_agent_in_hydra(
                     "did": did,
                     "public_key": public_key,
                     "key_type": key_type,
-                    "verification_method": "Ed25519VerificationKey2020" if key_type else None,
+                    "verification_method": "Ed25519VerificationKey2020"
+                    if key_type
+                    else None,
                     "registered_at": datetime.now(timezone.utc).isoformat(),
                     "hybrid_auth": True,  # Flag for hybrid OAuth2 + DID authentication
                 },
@@ -278,15 +282,15 @@ async def get_agent_token(credentials: AgentCredentials) -> Optional[str]:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                token_url, headers=headers, data=data
-            ) as response:
+            async with session.post(token_url, headers=headers, data=data) as response:
                 if response.status == 200:
                     result = await response.json()
                     return result.get("access_token")
                 else:
                     error_text = await response.text()
-                    logger.error(f"Failed to get token: {response.status} - {error_text}")
+                    logger.error(
+                        f"Failed to get token: {response.status} - {error_text}"
+                    )
                     return None
 
     except Exception as e:

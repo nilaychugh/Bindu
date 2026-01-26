@@ -6,7 +6,6 @@ including creation, listing, and deletion of clients.
 
 from __future__ import annotations as _annotations
 
-from typing import Any
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -40,16 +39,16 @@ async def create_oauth_client_endpoint(request: Request) -> JSONResponse:
 
         client_name = body.get("client_name")
         if not client_name:
-            return JSONResponse(
-                {"error": "client_name is required"}, status_code=400
-            )
+            return JSONResponse({"error": "client_name is required"}, status_code=400)
 
         # Generate client_id from name
         import re
+
         client_id = re.sub(r"[^a-z0-9-]", "-", client_name.lower())
 
         # Generate secure client secret
         import secrets
+
         client_secret = secrets.token_urlsafe(32)
 
         # Prepare client data
@@ -62,9 +61,7 @@ async def create_oauth_client_endpoint(request: Request) -> JSONResponse:
             ),
             "redirect_uris": body.get("redirect_uris", []),
             "response_types": body.get("response_types", ["code"]),
-            "scope": " ".join(
-                body.get("scopes", ["openid", "offline", "agent:read"])
-            ),
+            "scope": " ".join(body.get("scopes", ["openid", "offline", "agent:read"])),
             "token_endpoint_auth_method": body.get(
                 "token_endpoint_auth_method", "client_secret_basic"
             ),
@@ -99,9 +96,7 @@ async def create_oauth_client_endpoint(request: Request) -> JSONResponse:
         return JSONResponse({"error": str(e)}, status_code=400)
     except Exception as e:
         logger.error(f"Unexpected error creating OAuth client: {e}")
-        return JSONResponse(
-            {"error": "Internal server error"}, status_code=500
-        )
+        return JSONResponse({"error": "Internal server error"}, status_code=500)
 
 
 async def list_oauth_clients_endpoint(request: Request) -> JSONResponse:
@@ -146,9 +141,7 @@ async def list_oauth_clients_endpoint(request: Request) -> JSONResponse:
 
     except Exception as e:
         logger.error(f"Failed to list OAuth clients: {e}")
-        return JSONResponse(
-            {"error": "Internal server error"}, status_code=500
-        )
+        return JSONResponse({"error": "Internal server error"}, status_code=500)
 
 
 async def get_oauth_client_endpoint(request: Request) -> JSONResponse:
@@ -162,9 +155,7 @@ async def get_oauth_client_endpoint(request: Request) -> JSONResponse:
     try:
         client_id = request.path_params.get("client_id")
         if not client_id:
-            return JSONResponse(
-                {"error": "client_id is required"}, status_code=400
-            )
+            return JSONResponse({"error": "client_id is required"}, status_code=400)
 
         # Get client from Hydra
         async with HydraClient(
@@ -176,9 +167,7 @@ async def get_oauth_client_endpoint(request: Request) -> JSONResponse:
             client = await hydra.get_oauth_client(client_id)
 
         if not client:
-            return JSONResponse(
-                {"error": "Client not found"}, status_code=404
-            )
+            return JSONResponse({"error": "Client not found"}, status_code=404)
 
         # Remove sensitive data
         safe_client = {
@@ -195,9 +184,7 @@ async def get_oauth_client_endpoint(request: Request) -> JSONResponse:
 
     except Exception as e:
         logger.error(f"Failed to get OAuth client: {e}")
-        return JSONResponse(
-            {"error": "Internal server error"}, status_code=500
-        )
+        return JSONResponse({"error": "Internal server error"}, status_code=500)
 
 
 async def delete_oauth_client_endpoint(request: Request) -> JSONResponse:
@@ -211,9 +198,7 @@ async def delete_oauth_client_endpoint(request: Request) -> JSONResponse:
     try:
         client_id = request.path_params.get("client_id")
         if not client_id:
-            return JSONResponse(
-                {"error": "client_id is required"}, status_code=400
-            )
+            return JSONResponse({"error": "client_id is required"}, status_code=400)
 
         # Delete client from Hydra
         async with HydraClient(
@@ -225,9 +210,7 @@ async def delete_oauth_client_endpoint(request: Request) -> JSONResponse:
             deleted = await hydra.delete_oauth_client(client_id)
 
         if not deleted:
-            return JSONResponse(
-                {"error": "Client not found"}, status_code=404
-            )
+            return JSONResponse({"error": "Client not found"}, status_code=404)
 
         logger.info(f"OAuth client deleted: {client_id}")
 
@@ -238,9 +221,7 @@ async def delete_oauth_client_endpoint(request: Request) -> JSONResponse:
 
     except Exception as e:
         logger.error(f"Failed to delete OAuth client: {e}")
-        return JSONResponse(
-            {"error": "Internal server error"}, status_code=500
-        )
+        return JSONResponse({"error": "Internal server error"}, status_code=500)
 
 
 async def get_token_endpoint(request: Request) -> JSONResponse:
@@ -296,9 +277,7 @@ async def get_token_endpoint(request: Request) -> JSONResponse:
         }
 
         async with aiohttp.ClientSession() as session:
-            async with session.post(
-                token_url, headers=headers, data=data
-            ) as response:
+            async with session.post(token_url, headers=headers, data=data) as response:
                 if response.status == 200:
                     result = await response.json()
                     return JSONResponse(result, status_code=200)
@@ -314,6 +293,4 @@ async def get_token_endpoint(request: Request) -> JSONResponse:
 
     except Exception as e:
         logger.error(f"Failed to get token: {e}")
-        return JSONResponse(
-            {"error": "Internal server error"}, status_code=500
-        )
+        return JSONResponse({"error": "Internal server error"}, status_code=500)

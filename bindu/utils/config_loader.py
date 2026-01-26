@@ -304,68 +304,78 @@ def load_config_from_env(config: Dict[str, Any]) -> Dict[str, Any]:
     if "auth" not in enriched_config:
         auth_enabled = os.getenv("AUTH__ENABLED", "").lower() in ("true", "1", "yes")
         auth_provider = os.getenv("AUTH__PROVIDER", "").lower()
-        
+
         if auth_enabled and auth_provider:
             enriched_config["auth"] = {
                 "enabled": auth_enabled,
                 "provider": auth_provider,
             }
-            logger.debug(f"Loaded AUTH__ENABLED={auth_enabled} and AUTH__PROVIDER={auth_provider} from environment")
-            
+            logger.debug(
+                f"Loaded AUTH__ENABLED={auth_enabled} and AUTH__PROVIDER={auth_provider} from environment"
+            )
+
             # Load provider-specific configuration
             if auth_provider == "hydra":
                 hydra_admin_url = os.getenv("HYDRA__ADMIN_URL")
                 if hydra_admin_url:
                     enriched_config["auth"]["admin_url"] = hydra_admin_url
                     logger.debug("Loaded HYDRA__ADMIN_URL from environment")
-                
+
                 hydra_public_url = os.getenv("HYDRA__PUBLIC_URL")
                 if hydra_public_url:
                     enriched_config["auth"]["public_url"] = hydra_public_url
                     logger.debug("Loaded HYDRA__PUBLIC_URL from environment")
-                
+
                 # Connection settings
                 hydra_timeout = os.getenv("HYDRA__TIMEOUT")
                 if hydra_timeout:
                     enriched_config["auth"]["timeout"] = int(hydra_timeout)
                     logger.debug("Loaded HYDRA__TIMEOUT from environment")
-                
-                hydra_verify_ssl = os.getenv("HYDRA__VERIFY_SSL", "true").lower() in ("true", "1", "yes")
+
+                hydra_verify_ssl = os.getenv("HYDRA__VERIFY_SSL", "true").lower() in (
+                    "true",
+                    "1",
+                    "yes",
+                )
                 enriched_config["auth"]["verify_ssl"] = hydra_verify_ssl
                 logger.debug("Loaded HYDRA__VERIFY_SSL from environment")
-                
+
                 hydra_max_retries = os.getenv("HYDRA__MAX_RETRIES")
                 if hydra_max_retries:
                     enriched_config["auth"]["max_retries"] = int(hydra_max_retries)
                     logger.debug("Loaded HYDRA__MAX_RETRIES from environment")
-                
+
                 # Cache settings
                 hydra_cache_ttl = os.getenv("HYDRA__CACHE_TTL")
                 if hydra_cache_ttl:
                     enriched_config["auth"]["cache_ttl"] = int(hydra_cache_ttl)
                     logger.debug("Loaded HYDRA__CACHE_TTL from environment")
-                
+
                 hydra_max_cache_size = os.getenv("HYDRA__MAX_CACHE_SIZE")
                 if hydra_max_cache_size:
-                    enriched_config["auth"]["max_cache_size"] = int(hydra_max_cache_size)
+                    enriched_config["auth"]["max_cache_size"] = int(
+                        hydra_max_cache_size
+                    )
                     logger.debug("Loaded HYDRA__MAX_CACHE_SIZE from environment")
-                
+
                 # Auto-registration settings
-                hydra_auto_register = os.getenv("HYDRA__AUTO_REGISTER_AGENTS", "true").lower() in ("true", "1", "yes")
+                hydra_auto_register = os.getenv(
+                    "HYDRA__AUTO_REGISTER_AGENTS", "true"
+                ).lower() in ("true", "1", "yes")
                 enriched_config["auth"]["auto_register_agents"] = hydra_auto_register
                 logger.debug("Loaded HYDRA__AUTO_REGISTER_AGENTS from environment")
-                
+
                 hydra_client_prefix = os.getenv("HYDRA__AGENT_CLIENT_PREFIX")
                 if hydra_client_prefix:
                     enriched_config["auth"]["agent_client_prefix"] = hydra_client_prefix
                     logger.debug("Loaded HYDRA__AGENT_CLIENT_PREFIX from environment")
-            
+
             elif auth_provider == "auth0":
                 auth0_domain = os.getenv("AUTH0_DOMAIN")
                 if auth0_domain:
                     enriched_config["auth"]["domain"] = auth0_domain
                     logger.debug("Loaded AUTH0_DOMAIN from environment")
-                
+
                 auth0_audience = os.getenv("AUTH0_AUDIENCE")
                 if auth0_audience:
                     enriched_config["auth"]["audience"] = auth0_audience
@@ -401,28 +411,47 @@ def update_auth_settings(auth_config: Dict[str, Any]) -> None:
         # Auth is enabled - configure provider
         app_settings.auth.enabled = True
         app_settings.auth.provider = auth_config.get("provider", "hydra")
-        
+
         provider = auth_config.get("provider", "hydra")
-        
+
         if provider == "hydra":
             # Hydra-specific settings
             from bindu.settings import app_settings
+
             app_settings.hydra.enabled = True
-            app_settings.hydra.admin_url = auth_config.get("admin_url", app_settings.hydra.admin_url)
-            app_settings.hydra.public_url = auth_config.get("public_url", app_settings.hydra.public_url)
-            app_settings.hydra.timeout = auth_config.get("timeout", app_settings.hydra.timeout)
-            app_settings.hydra.verify_ssl = auth_config.get("verify_ssl", app_settings.hydra.verify_ssl)
-            app_settings.hydra.max_retries = auth_config.get("max_retries", app_settings.hydra.max_retries)
-            app_settings.hydra.cache_ttl = auth_config.get("cache_ttl", app_settings.hydra.cache_ttl)
-            app_settings.hydra.max_cache_size = auth_config.get("max_cache_size", app_settings.hydra.max_cache_size)
-            app_settings.hydra.auto_register_agents = auth_config.get("auto_register_agents", app_settings.hydra.auto_register_agents)
-            app_settings.hydra.agent_client_prefix = auth_config.get("agent_client_prefix", app_settings.hydra.agent_client_prefix)
-            
+            app_settings.hydra.admin_url = auth_config.get(
+                "admin_url", app_settings.hydra.admin_url
+            )
+            app_settings.hydra.public_url = auth_config.get(
+                "public_url", app_settings.hydra.public_url
+            )
+            app_settings.hydra.timeout = auth_config.get(
+                "timeout", app_settings.hydra.timeout
+            )
+            app_settings.hydra.verify_ssl = auth_config.get(
+                "verify_ssl", app_settings.hydra.verify_ssl
+            )
+            app_settings.hydra.max_retries = auth_config.get(
+                "max_retries", app_settings.hydra.max_retries
+            )
+            app_settings.hydra.cache_ttl = auth_config.get(
+                "cache_ttl", app_settings.hydra.cache_ttl
+            )
+            app_settings.hydra.max_cache_size = auth_config.get(
+                "max_cache_size", app_settings.hydra.max_cache_size
+            )
+            app_settings.hydra.auto_register_agents = auth_config.get(
+                "auto_register_agents", app_settings.hydra.auto_register_agents
+            )
+            app_settings.hydra.agent_client_prefix = auth_config.get(
+                "agent_client_prefix", app_settings.hydra.agent_client_prefix
+            )
+
             logger.info(
                 f"Hydra authentication configured: admin_url={auth_config.get('admin_url')}, "
                 f"auto_register={auth_config.get('auto_register_agents')}"
             )
-        
+
         elif provider == "auth0":
             # Auth0-specific settings
             app_settings.auth.domain = auth_config.get("domain", "")
@@ -439,7 +468,7 @@ def update_auth_settings(auth_config: Dict[str, Any]) -> None:
             app_settings.auth.permissions = auth_config.get(
                 "permissions", app_settings.auth.permissions
             )
-            
+
             logger.info(
                 f"Auth0 authentication configured: domain={auth_config.get('domain')}, "
                 f"audience={auth_config.get('audience')}"

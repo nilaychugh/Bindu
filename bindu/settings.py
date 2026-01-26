@@ -494,8 +494,13 @@ class AuthSettings(BaseSettings):
     # Public Endpoints (no authentication required)
     public_endpoints: list[str] = [
         "/.well-known/agent.json",
+        "/.well-known/*",
         "/did/resolve",
         "/agent/info",
+        "/agent/skills",
+        "/agent/skills/*",
+        "/health",
+        "/metrics",
         "/agent.html",
         "/chat.html",
         "/storage.html",
@@ -518,7 +523,7 @@ class AuthSettings(BaseSettings):
 
 class HydraSettings(BaseSettings):
     """Ory Hydra OAuth2 authentication configuration settings.
-    
+
     Hydra provides OAuth2/OIDC authentication for securing Bindu APIs
     and enabling agent-to-agent authentication.
     """
@@ -567,8 +572,13 @@ class HydraSettings(BaseSettings):
     # Public endpoints (no authentication required)
     public_endpoints: list[str] = [
         "/.well-known/agent.json",
+        "/.well-known/*",
         "/did/resolve",
         "/agent/info",
+        "/agent/skills",
+        "/agent/skills/*",
+        "/health",
+        "/metrics",
         "/agent.html",
         "/chat.html",
         "/storage.html",

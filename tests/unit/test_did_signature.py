@@ -73,7 +73,7 @@ class TestSignRequest:
         """Test that sign_request returns correct headers."""
         body = {"test": "data"}
         did = "did:key:z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
-        
+
         mock_did_ext = MagicMock()
         mock_did_ext.sign_message.return_value = "mock_signature_12345"
 
@@ -82,7 +82,7 @@ class TestSignRequest:
         assert headers["X-DID"] == did
         assert headers["X-DID-Signature"] == "mock_signature_12345"
         assert headers["X-DID-Timestamp"] == "1234567890"
-        
+
         # Verify sign_message was called
         mock_did_ext.sign_message.assert_called_once()
 
@@ -197,25 +197,25 @@ class TestValidateTimestamp:
     def test_validate_timestamp_valid(self):
         """Test validating a recent timestamp."""
         timestamp = int(time.time())
-        
+
         result = validate_timestamp(timestamp, max_age_seconds=300)
-        
+
         assert result is True
 
     def test_validate_timestamp_expired(self):
         """Test that old timestamps are rejected."""
         timestamp = int(time.time()) - 600  # 10 minutes ago
-        
+
         result = validate_timestamp(timestamp, max_age_seconds=300)
-        
+
         assert result is False
 
     def test_validate_timestamp_future(self):
         """Test that future timestamps within tolerance are accepted."""
         timestamp = int(time.time()) + 10  # 10 seconds in future
-        
+
         result = validate_timestamp(timestamp, max_age_seconds=300)
-        
+
         assert result is True
 
 
@@ -227,7 +227,7 @@ class TestCreateSignedRequestHeaders:
         body = {"test": "data"}
         did = "did:key:test"
         bearer_token = "ory_at_token123"
-        
+
         mock_did_ext = MagicMock()
         mock_did_ext.sign_message.return_value = "signature123"
 
@@ -247,13 +247,13 @@ class TestGetPublicKeyFromHydra:
     async def test_get_public_key_success(self):
         """Test successfully getting public key."""
         from bindu.utils.did_signature import get_public_key_from_hydra
-        
+
         mock_hydra = AsyncMock()
         mock_hydra.get_oauth_client.return_value = {
             "client_id": "did:key:test",
             "metadata": {
                 "public_key": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK"
-            }
+            },
         }
 
         public_key = await get_public_key_from_hydra("did:key:test", mock_hydra)
@@ -263,7 +263,7 @@ class TestGetPublicKeyFromHydra:
     async def test_get_public_key_not_found(self):
         """Test when client is not found."""
         from bindu.utils.did_signature import get_public_key_from_hydra
-        
+
         mock_hydra = AsyncMock()
         mock_hydra.get_oauth_client.return_value = None
 
@@ -274,11 +274,11 @@ class TestGetPublicKeyFromHydra:
     async def test_get_public_key_no_metadata(self):
         """Test when client has no public key in metadata."""
         from bindu.utils.did_signature import get_public_key_from_hydra
-        
+
         mock_hydra = AsyncMock()
         mock_hydra.get_oauth_client.return_value = {
             "client_id": "did:key:test",
-            "metadata": {}
+            "metadata": {},
         }
 
         public_key = await get_public_key_from_hydra("did:key:test", mock_hydra)

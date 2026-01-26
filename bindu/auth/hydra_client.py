@@ -246,7 +246,7 @@ class HydraClient:
         """
         try:
             # URL-encode client_id to handle DIDs with colons and special characters
-            encoded_client_id = quote(client_id, safe='')
+            encoded_client_id = quote(client_id, safe="")
             response = await self._request_with_retry(
                 "GET", f"/admin/clients/{encoded_client_id}"
             )
@@ -305,7 +305,7 @@ class HydraClient:
         """
         try:
             # URL-encode client_id to handle DIDs with colons and special characters
-            encoded_client_id = quote(client_id, safe='')
+            encoded_client_id = quote(client_id, safe="")
             response = await self._request_with_retry(
                 "DELETE", f"/admin/clients/{encoded_client_id}"
             )

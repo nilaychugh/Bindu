@@ -24,5 +24,5 @@ __all__ = [
     "register_agent_in_hydra",
     "load_agent_credentials",
     "save_agent_credentials",
-    "get_agent_token"
+    "get_agent_token",
 ]

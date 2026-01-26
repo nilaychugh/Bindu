@@ -550,7 +550,7 @@ Define minimal scopes for each client:
    import time
    current_time = int(time.time())
    request_timestamp = int(headers["X-DID-Timestamp"])
-   
+
    # Should be within 5 minutes (300 seconds)
    if abs(current_time - request_timestamp) > 300:
        print("Timestamp expired - request too old")
@@ -560,7 +560,7 @@ Define minimal scopes for each client:
    ```bash
    # Verify client has public key in metadata
    curl http://localhost:3773/admin/oauth/clients/did:key:z6Mk...
-   
+
    # Should see:
    # "metadata": {
    #   "public_key": "z6MkhaXgBZDvotDkL5257faiztiGiC2QtKLGpbnnEGta2doK",
@@ -579,7 +579,7 @@ Define minimal scopes for each client:
    ```python
    from bindu.extensions.did import DIDExtension
    from pathlib import Path
-   
+
    # Ensure DID extension can access private key
    did_ext = DIDExtension(pki_dir=Path(".bindu/pki"))
    print(f"DID: {did_ext.did}")
@@ -632,7 +632,7 @@ If migrating from Auth0:
    # Remove Auth0 vars
    # AUTH__DOMAIN=...
    # AUTH__AUDIENCE=...
-   
+
    # Add Hydra vars
    AUTH__PROVIDER=hydra
    HYDRA__ENABLED=true

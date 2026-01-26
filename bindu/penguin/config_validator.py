@@ -258,7 +258,9 @@ class ConfigValidator:
         # Validate admin_url and public_url if provided
         if "admin_url" in auth_config:
             admin_url = auth_config["admin_url"]
-            if not admin_url.startswith("http://") and not admin_url.startswith("https://"):
+            if not admin_url.startswith("http://") and not admin_url.startswith(
+                "https://"
+            ):
                 raise ValueError(
                     f"Invalid Hydra admin_url: '{admin_url}'. "
                     f"Expected format: 'https://hydra-admin.getbindu.com'"
@@ -266,7 +268,9 @@ class ConfigValidator:
 
         if "public_url" in auth_config:
             public_url = auth_config["public_url"]
-            if not public_url.startswith("http://") and not public_url.startswith("https://"):
+            if not public_url.startswith("http://") and not public_url.startswith(
+                "https://"
+            ):
                 raise ValueError(
                     f"Invalid Hydra public_url: '{public_url}'. "
                     f"Expected format: 'https://hydra.getbindu.com'"

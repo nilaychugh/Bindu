@@ -302,7 +302,9 @@ def bindufy(
 
     # Register agent in Hydra if authentication is enabled with Hydra provider
     if app_settings.auth.enabled and app_settings.auth.provider == "hydra":
-        logger.info("Registering agent in Hydra OAuth2 server with DID-based authentication...")
+        logger.info(
+            "Registering agent in Hydra OAuth2 server with DID-based authentication..."
+        )
         import asyncio
         from bindu.auth.hydra_registration import register_agent_in_hydra
 

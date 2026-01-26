@@ -22,7 +22,7 @@ logger = get_logger("bindu.utils.hybrid_auth_client")
 
 class HybridAuthClient:
     """Client for making authenticated requests with OAuth2 + DID signatures.
-    
+
     This client handles:
     - Getting OAuth2 tokens from Hydra
     - Signing requests with DID private key
@@ -115,7 +115,7 @@ class HybridAuthClient:
                     # Token might be expired, refresh and retry
                     logger.info("Token expired, refreshing...")
                     await self.refresh_token()
-                    
+
                     # Update headers with new token
                     auth_headers = create_signed_request_headers(
                         body=body_str,
@@ -125,7 +125,7 @@ class HybridAuthClient:
                     )
                     if headers:
                         auth_headers.update(headers)
-                    
+
                     # Retry request
                     async with session.post(
                         url, headers=auth_headers, data=body_str
@@ -171,9 +171,9 @@ class HybridAuthClient:
                     # Token might be expired, refresh and retry
                     logger.info("Token expired, refreshing...")
                     await self.refresh_token()
-                    
+
                     auth_headers["Authorization"] = f"Bearer {self.access_token}"
-                    
+
                     async with session.get(url, headers=auth_headers) as retry_response:
                         return await retry_response.json()
 
