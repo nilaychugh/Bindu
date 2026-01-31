@@ -11,4 +11,3 @@ try:
 except ImportError:
     # Protobuf code not generated yet
     __all__ = []
-

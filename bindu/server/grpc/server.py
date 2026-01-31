@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import asyncio
 from typing import Optional
 
-import grpc
 from grpc import aio
 
 from bindu.server.applications import BinduApplication
@@ -60,12 +58,12 @@ class GrpcServer:
 
         # Create gRPC server
         self._server = aio.server()
-        
+
         # Add servicer (requires generated protobuf code)
         try:
             from .servicer import A2AServicer
             from bindu.grpc import a2a_pb2_grpc
-            
+
             servicer = A2AServicer(self.app.task_manager)
             a2a_pb2_grpc.add_A2AServiceServicer_to_server(servicer, self._server)
             logger.info("A2AServicer registered successfully")
@@ -109,4 +107,3 @@ class GrpcServer:
     async def __aexit__(self, exc_type, exc_val, exc_tb):
         """Async context manager exit."""
         await self.stop()
-

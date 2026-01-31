@@ -10,15 +10,22 @@ Note: This module requires generated protobuf code. Run:
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import json
 from typing import Any
 from uuid import UUID
+
+from google.protobuf import json_format, struct_pb2
 
 from bindu.common.protocol.types import (
     Artifact,
     Message,
     Part,
+    PushNotificationConfig,
     Task,
+    TaskPushNotificationConfig,
     TaskStatus,
+    TaskArtifactUpdateEvent,
+    TaskStatusUpdateEvent,
     TextPart,
     FilePart,
     DataPart,
@@ -34,9 +41,7 @@ try:
     from bindu.grpc import a2a_pb2
 except ImportError:
     a2a_pb2 = None
-    logger.warning(
-        "Protobuf code not generated. Run: python scripts/generate_proto.py"
-    )
+    logger.warning("Protobuf code not generated. Run: python scripts/generate_proto.py")
 
 
 def uuid_to_str(uuid_value: UUID | str | None) -> str:
@@ -58,6 +63,93 @@ def str_to_uuid(uuid_str: str | None) -> UUID | None:
         return None
 
 
+def _struct_to_dict(value: struct_pb2.Struct) -> dict[str, Any]:
+    """Convert protobuf Struct to a Python dict."""
+    return json_format.MessageToDict(value, preserving_proto_field_name=True)
+
+
+def _dict_to_struct(value: dict[str, Any]) -> struct_pb2.Struct:
+    """Convert Python dict to protobuf Struct."""
+    struct = struct_pb2.Struct()
+    json_format.ParseDict(value, struct)
+    return struct
+
+
+def push_notification_config_to_proto(config: PushNotificationConfig) -> Any:
+    """Convert Pydantic PushNotificationConfig to protobuf PushNotificationConfig."""
+    if a2a_pb2 is None:
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
+
+    proto_config = a2a_pb2.PushNotificationConfig()
+    proto_config.id = uuid_to_str(config.get("id"))
+    proto_config.url = config.get("url", "")
+
+    token = config.get("token")
+    if token is not None:
+        proto_config.token = token
+
+    authentication = config.get("authentication")
+    if authentication is not None:
+        proto_config.authentication.CopyFrom(_dict_to_struct(dict(authentication)))
+
+    return proto_config
+
+
+def proto_to_push_notification_config(proto_config: Any) -> PushNotificationConfig:
+    """Convert protobuf PushNotificationConfig to Pydantic PushNotificationConfig."""
+    config: PushNotificationConfig = {
+        "id": str_to_uuid(proto_config.id) or UUID(int=0),
+        "url": proto_config.url,
+    }
+
+    if proto_config.token:
+        config["token"] = proto_config.token
+
+    if proto_config.HasField("authentication"):
+        if proto_config.authentication.fields:
+            config["authentication"] = _struct_to_dict(proto_config.authentication)
+
+    return config
+
+
+def task_push_notification_config_to_proto(config: TaskPushNotificationConfig) -> Any:
+    """Convert Pydantic TaskPushNotificationConfig to protobuf TaskPushNotificationConfig."""
+    if a2a_pb2 is None:
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
+
+    proto_config = a2a_pb2.TaskPushNotificationConfig()
+    proto_config.id = uuid_to_str(config.get("id"))
+    proto_config.push_notification_config.CopyFrom(
+        push_notification_config_to_proto(config["push_notification_config"])
+    )
+
+    if config.get("long_running") is not None:
+        proto_config.long_running = bool(config["long_running"])
+
+    return proto_config
+
+
+def proto_to_task_push_notification_config(
+    proto_config: Any,
+) -> TaskPushNotificationConfig:
+    """Convert protobuf TaskPushNotificationConfig to Pydantic TaskPushNotificationConfig."""
+    config: TaskPushNotificationConfig = {
+        "id": str_to_uuid(proto_config.id) or UUID(int=0),
+        "push_notification_config": proto_to_push_notification_config(
+            proto_config.push_notification_config
+        ),
+    }
+
+    if proto_config.long_running:
+        config["long_running"] = proto_config.long_running
+
+    return config
+
+
 def part_to_proto(part: Part) -> Any:
     """Convert Pydantic Part to protobuf Part.
 
@@ -68,7 +160,9 @@ def part_to_proto(part: Part) -> Any:
         Protobuf Part message
     """
     if a2a_pb2 is None:
-        raise ImportError("Protobuf code not generated. Run: python scripts/generate_proto.py")
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
 
     proto_part = a2a_pb2.Part()
 
@@ -96,6 +190,7 @@ def part_to_proto(part: Part) -> Any:
         data_part.mime_type = part.get("data", {}).get("mimeType", "application/json")
         # Convert dict to JSON bytes
         import json
+
         data_part.data = json.dumps(part.get("data", {})).encode("utf-8")
         if "metadata" in part:
             data_part.metadata.update(part.get("metadata", {}))
@@ -143,6 +238,7 @@ def proto_to_part(proto_part: Any) -> Part:
     elif proto_part.HasField("data"):
         data_proto = proto_part.data
         import json
+
         part: DataPart = {
             "kind": "data",
             "text": "",  # DataPart extends TextPart
@@ -165,7 +261,9 @@ def message_to_proto(msg: Message) -> Any:
         Protobuf Message
     """
     if a2a_pb2 is None:
-        raise ImportError("Protobuf code not generated. Run: python scripts/generate_proto.py")
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
 
     proto_msg = a2a_pb2.Message()
     proto_msg.message_id = uuid_to_str(msg.get("message_id"))
@@ -236,11 +334,15 @@ def task_status_to_proto(status: TaskStatus) -> Any:
         Protobuf TaskStatus
     """
     if a2a_pb2 is None:
-        raise ImportError("Protobuf code not generated. Run: python scripts/generate_proto.py")
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
 
     proto_status = a2a_pb2.TaskStatus()
     proto_status.state = status.get("state", "unknown")
-    proto_status.timestamp = status.get("timestamp", datetime.now(timezone.utc).isoformat())
+    proto_status.timestamp = status.get(
+        "timestamp", datetime.now(timezone.utc).isoformat()
+    )
 
     if "message" in status and status["message"]:
         proto_status.message.CopyFrom(message_to_proto(status["message"]))
@@ -278,7 +380,9 @@ def task_to_proto(task: Task) -> Any:
         Protobuf Task
     """
     if a2a_pb2 is None:
-        raise ImportError("Protobuf code not generated. Run: python scripts/generate_proto.py")
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
 
     proto_task = a2a_pb2.Task()
     proto_task.id = uuid_to_str(task.get("id"))
@@ -299,7 +403,9 @@ def task_to_proto(task: Task) -> Any:
             proto_task.history.append(proto_msg)
 
     if "metadata" in task and task["metadata"]:
-        proto_task.metadata.update({str(k): str(v) for k, v in task["metadata"].items()})
+        proto_task.metadata.update(
+            {str(k): str(v) for k, v in task["metadata"].items()}
+        )
 
     return proto_task
 
@@ -338,7 +444,9 @@ def artifact_to_proto(artifact: Artifact) -> Any:
         Protobuf Artifact
     """
     if a2a_pb2 is None:
-        raise ImportError("Protobuf code not generated. Run: python scripts/generate_proto.py")
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
 
     proto_artifact = a2a_pb2.Artifact()
     proto_artifact.artifact_id = uuid_to_str(artifact.get("artifact_id"))
@@ -350,7 +458,9 @@ def artifact_to_proto(artifact: Artifact) -> Any:
             proto_artifact.parts.append(proto_part)
 
     if "metadata" in artifact and artifact["metadata"]:
-        proto_artifact.metadata.update({str(k): str(v) for k, v in artifact["metadata"].items()})
+        proto_artifact.metadata.update(
+            {str(k): str(v) for k, v in artifact["metadata"].items()}
+        )
 
     return proto_artifact
 
@@ -378,3 +488,101 @@ def proto_to_artifact(proto_artifact: Any) -> Artifact:
 
     return artifact
 
+
+def context_summary_to_proto(context_summary: dict[str, Any]) -> Any:
+    """Convert context summary dict to protobuf Context.
+
+    Uses metadata mapping for task_count and task_ids as documented in
+    GRPC_CONTEXT_CONVERTER_DECISION.md.
+    """
+    if a2a_pb2 is None:
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
+
+    proto_context = a2a_pb2.Context()
+    proto_context.context_id = uuid_to_str(context_summary.get("context_id"))
+
+    metadata: dict[str, str] = {}
+    task_count = context_summary.get("task_count")
+    if task_count is not None:
+        metadata["task_count"] = str(task_count)
+
+    task_ids = context_summary.get("task_ids") or []
+    metadata["task_ids"] = json.dumps([uuid_to_str(task_id) for task_id in task_ids])
+
+    if metadata:
+        proto_context.metadata.update(metadata)
+
+    return proto_context
+
+
+def task_status_update_event_to_proto(event: TaskStatusUpdateEvent) -> Any:
+    """Convert TaskStatusUpdateEvent dict to protobuf TaskStatusUpdateEvent."""
+    if a2a_pb2 is None:
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
+
+    proto_event = a2a_pb2.TaskStatusUpdateEvent()
+    proto_event.task_id = uuid_to_str(event.get("task_id"))
+    proto_event.context_id = uuid_to_str(event.get("context_id"))
+    proto_event.final = bool(event.get("final", False))
+    proto_event.status.CopyFrom(task_status_to_proto(event["status"]))
+
+    metadata = event.get("metadata")
+    if metadata:
+        proto_event.metadata.update({str(k): str(v) for k, v in metadata.items()})
+
+    return proto_event
+
+
+def task_artifact_update_event_to_proto(event: TaskArtifactUpdateEvent) -> Any:
+    """Convert TaskArtifactUpdateEvent dict to protobuf TaskArtifactUpdateEvent."""
+    if a2a_pb2 is None:
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
+
+    proto_event = a2a_pb2.TaskArtifactUpdateEvent()
+    proto_event.task_id = uuid_to_str(event.get("task_id"))
+    proto_event.context_id = uuid_to_str(event.get("context_id"))
+    proto_event.append = bool(event.get("append", False))
+    proto_event.last_chunk = bool(event.get("last_chunk", False))
+    proto_event.artifact.CopyFrom(artifact_to_proto(event["artifact"]))
+
+    metadata = event.get("metadata")
+    if metadata:
+        proto_event.metadata.update({str(k): str(v) for k, v in metadata.items()})
+
+    return proto_event
+
+
+def task_event_to_proto(event: dict[str, Any]) -> Any:
+    """Convert a status/artifact event dict to protobuf TaskEvent."""
+    if a2a_pb2 is None:
+        raise ImportError(
+            "Protobuf code not generated. Run: python scripts/generate_proto.py"
+        )
+
+    kind = event.get("kind")
+    proto_event = a2a_pb2.TaskEvent()
+
+    if kind == "status-update":
+        status_event = dict(event)
+        if "error" in status_event:
+            metadata = dict(status_event.get("metadata") or {})
+            metadata["error"] = str(status_event["error"])
+            status_event["metadata"] = metadata
+        proto_event.status_update.CopyFrom(
+            task_status_update_event_to_proto(status_event)  # type: ignore[arg-type]
+        )
+        return proto_event
+
+    if kind == "artifact-update":
+        proto_event.artifact_update.CopyFrom(
+            task_artifact_update_event_to_proto(event)  # type: ignore[arg-type]
+        )
+        return proto_event
+
+    raise ValueError(f"Unknown task event kind: {kind}")

@@ -2,16 +2,28 @@
 
 from __future__ import annotations
 
+import json
 import uuid
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 import grpc
 
 from bindu.common.protocol.types import (
+    CancelTaskRequest,
+    ClearContextsRequest,
+    ContextIdParams,
+    DeleteTaskPushNotificationConfigRequest,
+    GetTaskPushNotificationRequest,
+    ListContextsRequest,
+    ListTaskPushNotificationConfigRequest,
+    ListTasksRequest,
     SendMessageRequest,
     SendMessageResponse,
-    TaskQueryParams,
+    SetTaskPushNotificationRequest,
+    StreamMessageRequest,
+    TaskFeedbackRequest,
     TaskIdParams,
+    TaskQueryParams,
 )
 from bindu.server.task_manager import TaskManager
 from bindu.utils.logging import get_logger
@@ -21,9 +33,15 @@ logger = get_logger("bindu.server.grpc.servicer")
 # Import converters (will work once protobuf code is generated)
 try:
     from bindu.server.grpc.converters import (
+        context_summary_to_proto,
         proto_to_message,
+        proto_to_task_push_notification_config,
+        str_to_uuid,
+        task_event_to_proto,
         task_to_proto,
+        task_push_notification_config_to_proto,
     )
+
     CONVERTERS_AVAILABLE = True
 except ImportError:
     CONVERTERS_AVAILABLE = False
@@ -32,6 +50,7 @@ except ImportError:
 # Import protobuf messages (will work once protobuf code is generated)
 try:
     from bindu.grpc import a2a_pb2
+
     PROTOBUF_AVAILABLE = True
 except ImportError:
     a2a_pb2 = None
@@ -61,6 +80,49 @@ class A2AServicer:
         self.task_manager = task_manager
         logger.info("A2AServicer initialized")
 
+    def _map_jsonrpc_error_to_status(self, error: dict) -> grpc.StatusCode:
+        """Map JSON-RPC error payloads to gRPC status codes."""
+        code = error.get("code")
+        message = str(error.get("message", "")).lower()
+
+        if "identifier mismatch" in message:
+            return grpc.StatusCode.FAILED_PRECONDITION
+        if code == -32005:
+            return grpc.StatusCode.FAILED_PRECONDITION
+        if code == -32001 or "not found" in message:
+            return grpc.StatusCode.NOT_FOUND
+        return grpc.StatusCode.INVALID_ARGUMENT
+
+    def _raise_on_jsonrpc_error(
+        self, context: grpc.ServicerContext, response: dict
+    ) -> None:
+        """Raise a gRPC error if a JSON-RPC response includes an error."""
+        error = response.get("error")
+        if not error:
+            return
+        status = self._map_jsonrpc_error_to_status(error)
+        message = str(error.get("message", "Unknown error"))
+        context.set_code(status)
+        context.set_details(message)
+        raise RuntimeError(message)
+
+    def _parse_sse_events(self, chunk: str | bytes) -> list[dict[str, Any]]:
+        """Parse SSE chunk(s) into event dicts."""
+        if isinstance(chunk, (bytes, bytearray)):
+            text = chunk.decode("utf-8")
+        else:
+            text = str(chunk)
+
+        events: list[dict[str, Any]] = []
+        for line in text.splitlines():
+            if not line.startswith("data:"):
+                continue
+            payload = line[len("data:") :].strip()
+            if not payload:
+                continue
+            events.append(json.loads(payload))
+        return events
+
     async def SendMessage(self, request, context):
         """Handle SendMessage gRPC call.
 
@@ -74,7 +136,9 @@ class A2AServicer:
         if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
             logger.error("Protobuf code not available. Cannot process SendMessage")
             context.set_code(grpc.StatusCode.INTERNAL)
-            context.set_details("gRPC support not fully initialized. Generate protobuf code first.")
+            context.set_details(
+                "gRPC support not fully initialized. Generate protobuf code first."
+            )
             raise NotImplementedError("gRPC support is in progress - see issue #67")
 
         try:
@@ -101,10 +165,14 @@ class A2AServicer:
                     "long_running": config.long_running,
                 }
                 if config.metadata:
-                    jsonrpc_request["params"]["configuration"]["metadata"] = dict(config.metadata)
+                    jsonrpc_request["params"]["configuration"]["metadata"] = dict(
+                        config.metadata
+                    )
 
             # Call TaskManager (same as JSON-RPC)
-            response: SendMessageResponse = await self.task_manager.send_message(jsonrpc_request)
+            response: SendMessageResponse = await self.task_manager.send_message(
+                jsonrpc_request
+            )
 
             # Convert Pydantic response to protobuf
             proto_response = a2a_pb2.MessageSendResponse()
@@ -129,16 +197,56 @@ class A2AServicer:
         Yields:
             TaskEvent protobuf messages
         """
-        if not PROTOBUF_AVAILABLE:
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
             logger.error("Protobuf code not available. Cannot process StreamMessage")
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details("gRPC support not fully initialized.")
-            raise NotImplementedError("gRPC streaming support is in progress - see issue #67")
+            raise NotImplementedError(
+                "gRPC streaming support is in progress - see issue #67"
+            )
+        try:
+            proto_message = request.message
+            pydantic_message = proto_to_message(proto_message)
 
-        # TODO: Implement streaming support
-        # This requires integration with the streaming mechanism
-        logger.info("StreamMessage called (not yet implemented)")
-        raise NotImplementedError("gRPC streaming support is in progress - see issue #67")
+            jsonrpc_request: StreamMessageRequest = {
+                "jsonrpc": "2.0",
+                "method": "message/stream",
+                "params": {
+                    "message": pydantic_message,
+                    "configuration": {},
+                },
+                "id": str(uuid.uuid4()),
+            }
+
+            if request.HasField("configuration"):
+                config = request.configuration
+                jsonrpc_request["params"]["configuration"] = {
+                    "accepted_output_modes": list(config.accepted_output_modes),
+                    "long_running": config.long_running,
+                }
+                if config.metadata:
+                    jsonrpc_request["params"]["configuration"]["metadata"] = dict(
+                        config.metadata
+                    )
+
+            stream_response = await self.task_manager.stream_message(jsonrpc_request)
+            body_iterator = getattr(stream_response, "body_iterator", None)
+            if body_iterator is None:
+                context.set_code(grpc.StatusCode.INTERNAL)
+                context.set_details("Streaming response not available.")
+                raise RuntimeError("Streaming response not available.")
+
+            async for chunk in body_iterator:
+                for event in self._parse_sse_events(chunk):
+                    yield task_event_to_proto(event)
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in StreamMessage: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
 
     async def GetTask(self, request, context):
         """Handle GetTask gRPC call.
@@ -182,6 +290,343 @@ class A2AServicer:
             context.set_details(f"Task not found: {str(e)}")
             raise
 
+    async def ListTasks(self, request, context):
+        """Handle ListTasks gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error("Protobuf code not available. Cannot process ListTasks")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            params: dict[str, Any] = {}
+            if request.limit:
+                params["length"] = request.limit
+
+            jsonrpc_request: ListTasksRequest = {
+                "jsonrpc": "2.0",
+                "method": "tasks/list",
+                "params": params,
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.list_tasks(jsonrpc_request)
+            self._raise_on_jsonrpc_error(context, response)
+
+            proto_response = a2a_pb2.TaskListResponse()
+            tasks = response.get("result") or []
+            for task in tasks:
+                proto_response.tasks.append(task_to_proto(task))
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in ListTasks: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def CancelTask(self, request, context):
+        """Handle CancelTask gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error("Protobuf code not available. Cannot process CancelTask")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            task_id = str_to_uuid(request.task_id) or uuid.UUID(int=0)
+            jsonrpc_request: CancelTaskRequest = {
+                "jsonrpc": "2.0",
+                "method": "tasks/cancel",
+                "params": TaskIdParams(task_id=task_id),
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.cancel_task(jsonrpc_request)
+            self._raise_on_jsonrpc_error(context, response)
+
+            return task_to_proto(response["result"])
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in CancelTask: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def TaskFeedback(self, request, context):
+        """Handle TaskFeedback gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error("Protobuf code not available. Cannot process TaskFeedback")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            task_id = str_to_uuid(request.task_id) or uuid.UUID(int=0)
+            params: dict[str, Any] = {
+                "task_id": task_id,
+                "feedback": request.feedback,
+            }
+            if request.rating:
+                params["rating"] = request.rating
+            if request.metadata:
+                params["metadata"] = dict(request.metadata)
+
+            jsonrpc_request: TaskFeedbackRequest = {
+                "jsonrpc": "2.0",
+                "method": "tasks/feedback",
+                "params": params,
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.task_feedback(jsonrpc_request)
+            self._raise_on_jsonrpc_error(context, response)
+
+            result = response.get("result") or {}
+            proto_response = a2a_pb2.TaskFeedbackResponse()
+            proto_response.success = True
+            proto_response.message = str(result.get("message", "Feedback submitted"))
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in TaskFeedback: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def ListContexts(self, request, context):
+        """Handle ListContexts gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error("Protobuf code not available. Cannot process ListContexts")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            params: dict[str, Any] = {}
+            if request.limit:
+                params["length"] = request.limit
+
+            jsonrpc_request: ListContextsRequest = {
+                "jsonrpc": "2.0",
+                "method": "contexts/list",
+                "params": params,
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.list_contexts(jsonrpc_request)
+            self._raise_on_jsonrpc_error(context, response)
+
+            proto_response = a2a_pb2.ContextListResponse()
+            contexts = response.get("result") or []
+            for context_summary in contexts:
+                proto_response.contexts.append(
+                    context_summary_to_proto(context_summary)
+                )
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in ListContexts: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def ClearContext(self, request, context):
+        """Handle ClearContext gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error("Protobuf code not available. Cannot process ClearContext")
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            context_id = str_to_uuid(request.context_id) or uuid.UUID(int=0)
+            jsonrpc_request: ClearContextsRequest = {
+                "jsonrpc": "2.0",
+                "method": "contexts/clear",
+                "params": ContextIdParams(context_id=context_id),
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.clear_context(jsonrpc_request)
+            self._raise_on_jsonrpc_error(context, response)
+
+            result = response.get("result") or {}
+            proto_response = a2a_pb2.ContextClearResponse()
+            proto_response.success = True
+            proto_response.message = str(result.get("message", "Context cleared"))
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in ClearContext: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def SetTaskPushNotification(self, request, context):
+        """Handle SetTaskPushNotification gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error(
+                "Protobuf code not available. Cannot process SetTaskPushNotification"
+            )
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            pydantic_config = proto_to_task_push_notification_config(request.config)
+            jsonrpc_request: SetTaskPushNotificationRequest = {
+                "jsonrpc": "2.0",
+                "method": "tasks/pushNotification/set",
+                "params": pydantic_config,
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.set_task_push_notification(
+                jsonrpc_request
+            )
+            self._raise_on_jsonrpc_error(context, response)
+
+            proto_response = task_push_notification_config_to_proto(response["result"])
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in SetTaskPushNotification: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def GetTaskPushNotification(self, request, context):
+        """Handle GetTaskPushNotification gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error(
+                "Protobuf code not available. Cannot process GetTaskPushNotification"
+            )
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            task_id = str_to_uuid(request.task_id) or uuid.UUID(int=0)
+            jsonrpc_request: GetTaskPushNotificationRequest = {
+                "jsonrpc": "2.0",
+                "method": "tasks/pushNotification/get",
+                "params": TaskIdParams(task_id=task_id),
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.get_task_push_notification(
+                jsonrpc_request
+            )
+            self._raise_on_jsonrpc_error(context, response)
+
+            proto_response = task_push_notification_config_to_proto(response["result"])
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in GetTaskPushNotification: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def ListTaskPushNotifications(self, request, context):
+        """Handle ListTaskPushNotifications gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error(
+                "Protobuf code not available. Cannot process ListTaskPushNotifications"
+            )
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            task_id = str_to_uuid(request.id) or uuid.UUID(int=0)
+            jsonrpc_request: ListTaskPushNotificationConfigRequest = {
+                "jsonrpc": "2.0",
+                "method": "tasks/pushNotificationConfig/list",
+                "params": {
+                    "id": task_id,
+                },
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.list_task_push_notifications(
+                jsonrpc_request
+            )
+            self._raise_on_jsonrpc_error(context, response)
+
+            proto_response = a2a_pb2.TaskPushNotificationListResponse()
+            proto_response.configs.append(
+                task_push_notification_config_to_proto(response["result"])
+            )
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in ListTaskPushNotifications: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
+    async def DeleteTaskPushNotification(self, request, context):
+        """Handle DeleteTaskPushNotification gRPC call."""
+        if not PROTOBUF_AVAILABLE or not CONVERTERS_AVAILABLE:
+            logger.error(
+                "Protobuf code not available. Cannot process DeleteTaskPushNotification"
+            )
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details("gRPC support not fully initialized.")
+            raise NotImplementedError("gRPC support is in progress - see issue #67")
+
+        try:
+            task_id = str_to_uuid(request.id) or uuid.UUID(int=0)
+            config_id = str_to_uuid(request.push_notification_config_id) or uuid.UUID(
+                int=0
+            )
+            jsonrpc_request: DeleteTaskPushNotificationConfigRequest = {
+                "jsonrpc": "2.0",
+                "method": "tasks/pushNotificationConfig/delete",
+                "params": {
+                    "id": task_id,
+                    "push_notification_config_id": config_id,
+                },
+                "id": str(uuid.uuid4()),
+            }
+
+            response = await self.task_manager.delete_task_push_notification(
+                jsonrpc_request
+            )
+            self._raise_on_jsonrpc_error(context, response)
+
+            proto_response = a2a_pb2.DeleteTaskPushNotificationResponse()
+            proto_response.config.CopyFrom(
+                task_push_notification_config_to_proto(response["result"])
+            )
+            return proto_response
+
+        except RuntimeError:
+            raise
+        except Exception as e:
+            logger.error(f"Error in DeleteTaskPushNotification: {e}", exc_info=True)
+            context.set_code(grpc.StatusCode.INTERNAL)
+            context.set_details(f"Internal error: {str(e)}")
+            raise
+
     async def HealthCheck(self, request, context):
         """Handle HealthCheck gRPC call.
 
@@ -209,7 +654,9 @@ class A2AServicer:
                 else a2a_pb2.HealthCheckResponse.ServingStatus.NOT_SERVING
             )
 
-            logger.info(f"HealthCheck: status={'SERVING' if is_healthy else 'NOT_SERVING'}")
+            logger.info(
+                f"HealthCheck: status={'SERVING' if is_healthy else 'NOT_SERVING'}"
+            )
             return proto_response
 
         except Exception as e:
@@ -217,4 +664,3 @@ class A2AServicer:
             context.set_code(grpc.StatusCode.INTERNAL)
             context.set_details(f"Health check failed: {str(e)}")
             raise
-

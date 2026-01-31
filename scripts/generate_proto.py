@@ -58,7 +58,9 @@ def generate_proto_code():
             print(e.stderr)
             return False
         except FileNotFoundError:
-            print("❌ grpc_tools.protoc not found. Install with: pip install grpcio-tools")
+            print(
+                "❌ grpc_tools.protoc not found. Install with: pip install grpcio-tools"
+            )
             return False
 
     print(f"\n✅ All proto files processed. Output in: {OUTPUT_DIR}")
@@ -68,4 +70,3 @@ def generate_proto_code():
 if __name__ == "__main__":
     success = generate_proto_code()
     sys.exit(0 if success else 1)
-

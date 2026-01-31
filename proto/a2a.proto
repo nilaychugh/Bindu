@@ -1,5 +1,7 @@
 syntax = "proto3";
 
+import "google/protobuf/struct.proto";
+
 package bindu.a2a.v1;
 
 // A2A Protocol Buffer definitions for Bindu gRPC support
@@ -10,17 +12,23 @@ service A2AService {
   // Message operations
   rpc SendMessage(MessageSendRequest) returns (MessageSendResponse);
   rpc StreamMessage(MessageSendRequest) returns (stream TaskEvent);
-  
+
   // Task operations
   rpc GetTask(TaskQueryRequest) returns (Task);
   rpc ListTasks(ListTasksRequest) returns (TaskListResponse);
   rpc CancelTask(TaskIdRequest) returns (Task);
   rpc TaskFeedback(TaskFeedbackRequest) returns (TaskFeedbackResponse);
-  
+
   // Context operations
   rpc ListContexts(ListContextsRequest) returns (ContextListResponse);
   rpc ClearContext(ContextIdRequest) returns (ContextClearResponse);
-  
+
+  // Push notification operations
+  rpc SetTaskPushNotification(SetTaskPushNotificationRequest) returns (TaskPushNotificationConfig);
+  rpc GetTaskPushNotification(GetTaskPushNotificationRequest) returns (TaskPushNotificationConfig);
+  rpc ListTaskPushNotifications(ListTaskPushNotificationsRequest) returns (TaskPushNotificationListResponse);
+  rpc DeleteTaskPushNotification(DeleteTaskPushNotificationRequest) returns (DeleteTaskPushNotificationResponse);
+
   // Health check
   rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
 }
@@ -161,6 +169,46 @@ message TaskConfiguration {
   map<string, string> metadata = 3;
 }
 
+// Push notification types
+message PushNotificationConfig {
+  string id = 1;
+  string url = 2;
+  string token = 3;
+  google.protobuf.Struct authentication = 4;
+}
+
+message TaskPushNotificationConfig {
+  string id = 1;
+  PushNotificationConfig push_notification_config = 2;
+  bool long_running = 3;
+}
+
+// Push notification requests/responses
+message SetTaskPushNotificationRequest {
+  TaskPushNotificationConfig config = 1;
+}
+
+message GetTaskPushNotificationRequest {
+  string task_id = 1;
+}
+
+message ListTaskPushNotificationsRequest {
+  string id = 1;
+}
+
+message DeleteTaskPushNotificationRequest {
+  string id = 1;
+  string push_notification_config_id = 2;
+}
+
+message TaskPushNotificationListResponse {
+  repeated TaskPushNotificationConfig configs = 1;
+}
+
+message DeleteTaskPushNotificationResponse {
+  TaskPushNotificationConfig config = 1;
+}
+
 // Streaming events
 message TaskEvent {
   oneof event {
@@ -199,4 +247,3 @@ message HealthCheckResponse {
   }
   ServingStatus status = 1;
 }
-
