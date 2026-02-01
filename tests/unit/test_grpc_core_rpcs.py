@@ -95,9 +95,10 @@ async def test_grpc_list_tasks_error():
 @pytest.mark.asyncio
 async def test_grpc_cancel_task_success():
     storage = InMemoryStorage()
+    manifest = MockManifest()
     async with InMemoryScheduler() as scheduler:
         async with TaskManager(
-            scheduler=scheduler, storage=storage, manifest=None
+            scheduler=scheduler, storage=storage, manifest=manifest
         ) as tm:
             servicer = A2AServicer(tm)
 

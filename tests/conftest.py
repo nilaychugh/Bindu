@@ -350,10 +350,10 @@ async def task_manager_with_push(
         storage=storage,
         manifest=cast(AgentManifest, mock_manifest_with_push),
     )
-    tm.notification_service = cast(MockNotificationService, mock_notification_service)  # type: ignore[assignment]
-    await tm.__aenter__()
+    tm._push_manager.notification_service = cast(  # type: ignore[attr-defined]
+        MockNotificationService, mock_notification_service
+    )
     yield tm
-    await tm.__aexit__(None, None, None)
 
 
 @pytest_asyncio.fixture

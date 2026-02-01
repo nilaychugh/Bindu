@@ -15,15 +15,15 @@ This is a work-in-progress feature. See [Issue #67](https://github.com/GetBindu/
 - [x] Core A2AServicer RPCs (SendMessage, GetTask, ListTasks, CancelTask, TaskFeedback, ListContexts, ClearContext, StreamMessage)
 - [x] Push notification RPCs
 - [x] Unit tests for core RPCs and push notifications
+- [x] BinduApplication lifecycle wiring for gRPC
+- [x] TLS/SSL support (static server credentials)
 
 ### 🚧 In Progress
 - [ ] Generate Python code from `.proto` files (when proto changes)
-- [ ] Add gRPC server to BinduApplication
 - [ ] Add integration tests
 - [ ] Add documentation and examples (deployment, client usage)
 
 ### 📋 TODO
-- [ ] TLS/SSL support
 - [ ] Streaming support
 - [ ] Performance benchmarking
 - [ ] Client libraries
@@ -52,14 +52,71 @@ python -m grpc_tools.protoc \
 ### Running the gRPC Server
 
 ```python
+from bindu.server.applications import BinduApplication
+
+app = BinduApplication(
+    ...,
+    grpc_enabled=True,
+    grpc_host="0.0.0.0",
+    grpc_port=50051,
+    grpc_max_workers=10,
+    grpc_tls_enabled=True,
+    grpc_tls_cert_path="/path/to/cert.pem",
+    grpc_tls_key_path="/path/to/key.pem",
+)
+```
+
+If you need to run the gRPC server manually (outside the app lifespan):
+
+```python
 from bindu.server.grpc import GrpcServer
 from bindu.server.applications import BinduApplication
 
 app = BinduApplication(...)
 grpc_server = GrpcServer(app, port=50051)
 
-# Start server
+# Start server (non-blocking)
 await grpc_server.start()
+await grpc_server.wait_for_termination()
+# or: await grpc_server.serve()
+```
+
+### Configuration
+
+gRPC is disabled by default. Enable it via environment variables or constructor overrides:
+
+```bash
+BINDU_GRPC_ENABLED=true
+BINDU_GRPC_HOST=0.0.0.0
+BINDU_GRPC_PORT=50051
+BINDU_GRPC_MAX_WORKERS=10
+
+# TLS settings (enable to serve a secure port only)
+BINDU_GRPC_TLS_ENABLED=false
+BINDU_GRPC_TLS_CERT_PATH=/path/to/cert.pem
+BINDU_GRPC_TLS_KEY_PATH=/path/to/key.pem
+```
+
+When TLS is enabled, the server will fail fast if the certificate or key file
+is missing or unreadable.
+
+### Authentication (JWT metadata)
+
+When authentication is enabled (`AUTH__ENABLED=true`), gRPC requests must send
+an `authorization` metadata entry with a `Bearer <JWT>` token. Missing or
+invalid tokens are rejected with `UNAUTHENTICATED`.
+
+```python
+import grpc
+from bindu.grpc import a2a_pb2, a2a_pb2_grpc
+
+async def list_tasks_with_auth(token: str):
+    async with grpc.aio.insecure_channel("localhost:50051") as channel:
+        stub = a2a_pb2_grpc.A2AServiceStub(channel)
+        metadata = (("authorization", f"Bearer {token}"),)
+        return await stub.ListTasks(
+            a2a_pb2.ListTasksRequest(limit=10), metadata=metadata
+        )
 ```
 
 ## Push Notification RPCs

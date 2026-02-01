@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Optional
 
+import grpc
 from grpc import aio
 
 from bindu.server.applications import BinduApplication
+from bindu.settings import app_settings
 from bindu.utils.logging import get_logger
 
 logger = get_logger("bindu.server.grpc.server")
@@ -26,6 +29,7 @@ class GrpcServer:
         app = BinduApplication(...)
         grpc_server = GrpcServer(app, port=50051)
         await grpc_server.start()
+        await grpc_server.wait_for_termination()
         ```
     """
 
@@ -35,6 +39,9 @@ class GrpcServer:
         port: int = 50051,
         host: str = "[::]",
         max_workers: int = 10,
+        tls_enabled: bool = False,
+        tls_cert_path: str | None = None,
+        tls_key_path: str | None = None,
     ):
         """Initialize gRPC server.
 
@@ -43,21 +50,47 @@ class GrpcServer:
             port: Port to listen on (default: 50051)
             host: Host to bind to (default: "[::]" for IPv6)
             max_workers: Maximum number of worker threads
+            tls_enabled: Enable TLS for gRPC server
+            tls_cert_path: Path to PEM-encoded TLS certificate chain
+            tls_key_path: Path to PEM-encoded TLS private key
         """
         self.app = app
         self.port = port
         self.host = host
         self.max_workers = max_workers
+        self.tls_enabled = tls_enabled
+        self.tls_cert_path = tls_cert_path
+        self.tls_key_path = tls_key_path
         self._server: Optional[aio.Server] = None
 
     async def start(self) -> None:
-        """Start the gRPC server."""
+        """Start the gRPC server without blocking."""
         if self._server is not None:
             logger.warning("gRPC server is already running")
             return
 
+        listen_addr = f"{self.host}:{self.port}"
+        server_credentials: grpc.ServerCredentials | None = None
+        if self.tls_enabled:
+            if not self.tls_cert_path or not self.tls_key_path:
+                raise ValueError(
+                    "gRPC TLS is enabled but certificate/key paths are not set"
+                )
+            cert_bytes = Path(self.tls_cert_path).read_bytes()
+            key_bytes = Path(self.tls_key_path).read_bytes()
+            server_credentials = grpc.ssl_server_credentials(
+                [(key_bytes, cert_bytes)]
+            )
+
+        interceptors: list[aio.ServerInterceptor] = []
+        if app_settings.auth.enabled:
+            from .auth import GrpcAuthInterceptor
+
+            interceptors.append(GrpcAuthInterceptor(app_settings.auth))
+            logger.info("gRPC auth interceptor enabled")
+
         # Create gRPC server
-        self._server = aio.server()
+        self._server = aio.server(interceptors=interceptors or None)
 
         # Add servicer (requires generated protobuf code)
         try:
@@ -74,16 +107,30 @@ class GrpcServer:
             )
             # Server will start but won't handle requests until protobuf code is generated
 
-        # Add insecure port (for now - TLS support can be added later)
-        listen_addr = f"{self.host}:{self.port}"
-        self._server.add_insecure_port(listen_addr)
+        if self.tls_enabled:
+            if server_credentials is None:
+                raise RuntimeError(
+                    "gRPC TLS is enabled but server credentials were not created"
+                )
+            self._server.add_secure_port(listen_addr, server_credentials)
+        else:
+            self._server.add_insecure_port(listen_addr)
 
         # Start server
         await self._server.start()
         logger.info(f"gRPC server started on {listen_addr}")
 
-        # Keep server running
+    async def wait_for_termination(self) -> None:
+        """Block until the gRPC server terminates."""
+        if self._server is None:
+            logger.warning("gRPC server is not running")
+            return
         await self._server.wait_for_termination()
+
+    async def serve(self) -> None:
+        """Start the gRPC server and wait for termination."""
+        await self.start()
+        await self.wait_for_termination()
 
     async def stop(self, grace_period: float = 5.0) -> None:
         """Stop the gRPC server.
