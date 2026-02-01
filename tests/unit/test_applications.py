@@ -261,7 +261,7 @@ class TestBinduApplicationLifespan:
             mock_create_storage.return_value = mock_storage
 
             with patch("bindu.server.storage.factory.close_storage") as mock_close:
-                with patch("bindu.server.task_manager.TaskManager") as mock_tm:
+                with patch("bindu.server.applications.TaskManager") as mock_tm:
                     mock_tm_instance = MagicMock()
                     mock_tm_instance.__aenter__ = AsyncMock(
                         return_value=mock_tm_instance

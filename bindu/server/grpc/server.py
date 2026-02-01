@@ -50,7 +50,7 @@ class GrpcServer:
             app: Bindu application instance
             port: Port to listen on (default: 50051)
             host: Host to bind to (default: "[::]" for IPv6)
-            max_workers: Maximum number of worker threads
+            max_workers: Maximum number of concurrent RPCs to allow
             tls_enabled: Enable TLS for gRPC server
             tls_cert_path: Path to PEM-encoded TLS certificate chain
             tls_key_path: Path to PEM-encoded TLS private key
@@ -89,7 +89,10 @@ class GrpcServer:
             logger.info("gRPC auth interceptor enabled")
 
         # Create gRPC server
-        self._server = grpc_aio.server(interceptors=interceptors or None)
+        self._server = grpc_aio.server(
+            interceptors=interceptors or None,
+            maximum_concurrent_rpcs=self.max_workers,
+        )
 
         # Add servicer (requires generated protobuf code)
         try:

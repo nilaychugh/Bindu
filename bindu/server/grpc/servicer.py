@@ -176,6 +176,7 @@ class A2AServicer:
             response: SendMessageResponse = await self.task_manager.send_message(
                 jsonrpc_request
             )
+            self._raise_on_jsonrpc_error(context, response)
 
             # Convert Pydantic response to protobuf
             proto_response = proto.MessageSendResponse()
@@ -184,6 +185,8 @@ class A2AServicer:
             logger.info(f"SendMessage completed: task_id={response['result']['id']}")
             return proto_response
 
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"Error in SendMessage: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.INTERNAL)
@@ -269,7 +272,11 @@ class A2AServicer:
 
         try:
             # Build TaskQueryParams (JSON-RPC format)
-            task_id = str_to_uuid(request.task_id) or uuid.UUID(int=0)
+            task_id = str_to_uuid(request.task_id)
+            if task_id is None:
+                context.set_code(grpc.StatusCode.INVALID_ARGUMENT)
+                context.set_details("Invalid task_id")
+                raise RuntimeError("Invalid task_id")
             jsonrpc_request = {
                 "jsonrpc": "2.0",
                 "method": "tasks/get",
@@ -281,6 +288,7 @@ class A2AServicer:
 
             # Call TaskManager
             response = await self.task_manager.get_task(jsonrpc_request)
+            self._raise_on_jsonrpc_error(context, response)
 
             # Convert to protobuf
             proto_task = task_to_proto(response["result"])
@@ -288,6 +296,8 @@ class A2AServicer:
             logger.info(f"GetTask completed: task_id={request.task_id}")
             return proto_task
 
+        except RuntimeError:
+            raise
         except Exception as e:
             logger.error(f"Error in GetTask: {e}", exc_info=True)
             context.set_code(grpc.StatusCode.NOT_FOUND)

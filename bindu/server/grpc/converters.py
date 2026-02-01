@@ -199,8 +199,6 @@ def part_to_proto(part: Part) -> Any:
     elif part["kind"] == "data":
         data_part = a2a_pb2.DataPart()
         data_part.mime_type = part.get("data", {}).get("mimeType", "application/json")
-        # Convert dict to JSON bytes
-        import json
 
         data_part.data = json.dumps(part.get("data", {})).encode("utf-8")
         if "metadata" in part:
@@ -245,6 +243,7 @@ def proto_to_part(proto_part: Any) -> Part:
                     "uri": file_proto.file_id,
                     "mimeType": file_proto.mime_type,
                     "name": file_proto.filename,
+                    "bytes": "",
                 },
             },
         )
@@ -254,7 +253,6 @@ def proto_to_part(proto_part: Any) -> Part:
 
     elif proto_part.HasField("data"):
         data_proto = proto_part.data
-        import json
 
         part = cast(
             DataPart,
