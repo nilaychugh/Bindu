@@ -6,18 +6,13 @@ export type Model = Pick<
 	| "name"
 	| "displayName"
 	| "isRouter"
-	| "websiteUrl"
-	| "datasetName"
-	| "promptExamples"
 	| "parameters"
-	| "description"
-	| "logoUrl"
-	| "modelUrl"
-	| "datasetUrl"
-	| "preprompt"
 	| "multimodal"
-	| "multimodalAcceptedMimetypes"
 	| "unlisted"
 	| "hasInferenceAPI"
-	| "providers"
->;
+> & Partial<Pick<
+	BackendModel,
+	| "description"
+	| "preprompt"
+	| "multimodalAcceptedMimetypes"
+>>;

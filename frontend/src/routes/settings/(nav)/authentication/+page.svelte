@@ -351,9 +351,9 @@
 			<!-- Access Token Display -->
 			{#if authStatus === "authenticated" && authToken}
 				<div>
-					<label class="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
+					<h3 class="mb-2 text-sm font-medium text-gray-700 dark:text-gray-300">
 						Access Token
-					</label>
+					</h3>
 					<div class="flex items-center gap-2">
 						<code
 							class="flex-1 overflow-x-auto rounded-lg bg-gray-100 px-4 py-3 font-mono text-xs text-gray-800 dark:bg-gray-700 dark:text-gray-200"
