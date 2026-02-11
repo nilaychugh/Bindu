@@ -394,7 +394,7 @@ Output:
 
 | Feature | Description | Documentation |
 |---------|-------------|---------------|
-| �🔐 **Authentication** | Secure API access with Ory Hydra OAuth2 (optional for development) | [Guide →](docs/AUTHENTICATION.md) |
+|  **Authentication** | Secure API access with Ory Hydra OAuth2 (optional for development) | [Guide →](docs/AUTHENTICATION.md) |
 | 💰 **Payment Integration (X402)** | Accept USDC payments on Base blockchain before executing protected methods | [Guide →](docs/PAYMENT.md) |
 | 💾 **PostgreSQL Storage** | Persistent storage for production deployments (optional - InMemoryStorage by default) | [Guide →](docs/STORAGE.md) |
 | 📋 **Redis Scheduler** | Distributed task scheduling for multi-worker deployments (optional - InMemoryScheduler by default) | [Guide →](docs/SCHEDULER.md) |
@@ -403,61 +403,8 @@ Output:
 | 📬 **Push Notifications** | Real-time webhook notifications for task updates - no polling required | [Guide →](docs/NOTIFICATIONS.md) |
 | 📊 **Observability & Monitoring** | Track performance and debug issues with OpenTelemetry and Sentry | [Guide →](docs/OBSERVABILITY.md) |
 | 🔄 **Retry Mechanism** | Automatic retry with exponential backoff for resilient agents | [Guide →](https://docs.getbindu.com/bindu/learn/retry/overview) |
-
----
-
-## 🔑 Decentralized Identifiers (DIDs)
-
-Every Bindu agent has a unique **DID (Decentralized Identifier)** - a cryptographic identity that enables verifiable, secure agent interactions.
-
-**Why DIDs?**
-- **Verifiable identity** - Cryptographically prove agent authenticity
-- **Decentralized trust** - No central authority required
-- **Secure messaging** - Sign and verify agent communications
-- **Payment integration** - Link crypto payments to agent identities
-
-**DID Format:**
-```
-did:bindu:<email>:<agent_name>:<unique_hash>
-```
-
-**Resolve a DID:**
-```bash
-curl -X POST http://localhost:3773/did/resolve \
-  -H "Content-Type: application/json" \
-  -d '{"did": "did:bindu:gaurikasethi88_at_gmail_com:echo_agent:352c17d030fb4bf1ab33d04b102aef3d"}'
-```
-
-**Response:**
-```json
-{
-    "id": "did:bindu:gaurikasethi88_at_gmail_com:echo_agent:352c17d030fb4bf1ab33d04b102aef3d",
-    "authentication": [{
-        "type": "Ed25519VerificationKey2020",
-        "publicKeyBase58": "FiaPSPTW1CrjSr2f53EamW3cxZGhXNeBbSesRD31uqKe"
-    }]
-}
-```
-
-📖 **[Full DID Guide →](docs/DID.md)**
-
----
-
-## 🏥 Health Check & Metrics
-
-Monitor your agent's health and performance with built-in endpoints.
-
-**Health Check:**
-```bash
-curl http://localhost:3773/health
-```
-
-**Metrics API:**
-```bash
-curl http://localhost:3773/metrics
-```
-
-📖 **[Full Guide →](docs/HEALTH_METRICS.md)**
+| 🔑 **Decentralized Identifiers (DIDs)** | Cryptographic identity for verifiable, secure agent interactions and payment integration | [Guide →](docs/DID.md) |
+| 🏥 **Health Check & Metrics** | Monitor agent health and performance with built-in endpoints | [Guide →](docs/HEALTH_METRICS.md) |
 
 ---
 
