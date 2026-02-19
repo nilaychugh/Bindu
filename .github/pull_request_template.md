@@ -37,7 +37,7 @@ Describe the problem and fix in 2–5 bullets:
 
 ## User-Visible / Behavior Changes
 
-List user-visible changes (including defaults/config).  
+List user-visible changes (including defaults/config).
 If none, write `None`.
 
 ## Security Impact (required)

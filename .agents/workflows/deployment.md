@@ -138,7 +138,7 @@ Quick reference:
 
 ```bash
 # Set environment
-export DATABASE_URL="postgresql://user:pass@host:5432/bindu"
+export DATABASE_URL="postgresql://<username>:<password>@host:5432/bindu"
 export REDIS_URL="redis://host:6379/0"
 export STORAGE_BACKEND=postgres
 export SCHEDULER_BACKEND=redis

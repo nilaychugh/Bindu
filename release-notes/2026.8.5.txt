@@ -8,7 +8,7 @@ Author: Raahul Dutta
 OVERVIEW
 --------
 Major code minimization release focused on removing unused code across the
-codebase, particularly in the observability and extensions modules. 
+codebase, particularly in the observability and extensions modules.
 
 BREAKING CHANGES
 ----------------
@@ -19,14 +19,14 @@ BREAKING CHANGES
   - bindu.observability.set_context() removed
   - bindu.observability.add_breadcrumb() removed
   - bindu.observability.start_transaction() removed
-  
+
   Migration: Use sentry_sdk directly if needed:
     from sentry_sdk import capture_exception, set_user, etc.
 
 ⚠️ Removed x402 constants file
   - bindu/extensions/x402/constants.py deleted
   - All constants moved to bindu.settings.X402Settings
-  
+
   Migration: Use app_settings.x402.* instead:
     from bindu.settings import app_settings
     app_settings.x402.extension_uri
@@ -37,7 +37,7 @@ BREAKING CHANGES
   - DIDAgentExtension._sanitize_did_component() (inlined)
   - DIDAgentExtension._get_key_paths() (inlined)
   - DIDAgentExtension._encode_text() (inlined)
-  
+
   Migration: These were internal methods - no action needed
 
 IMPROVEMENTS
@@ -117,7 +117,7 @@ Code Metrics:
 Observability Module Changes:
   Before: 8 exports (setup, init_sentry, 6 wrapper functions)
   After: 2 exports (setup, init_sentry)
-  
+
   Removed Functions (use sentry_sdk directly if needed):
     - capture_exception(error, **kwargs)
     - capture_message(message, level, **kwargs)
@@ -130,7 +130,7 @@ X402 Settings Migration:
   Old (constants.py):
     from bindu.extensions.x402.constants import X402_EXTENSION_URI
     from bindu.extensions.x402.constants import X402Metadata, X402Status
-  
+
   New (settings.py):
     from bindu.settings import app_settings
     app_settings.x402.extension_uri
@@ -157,7 +157,7 @@ For applications using removed Sentry wrappers:
 1. Replace bindu.observability imports:
    # Old
    from bindu.observability import capture_exception, set_user
-   
+
    # New
    import sentry_sdk
    sentry_sdk.capture_exception(error)
@@ -166,7 +166,7 @@ For applications using removed Sentry wrappers:
 2. Update x402 constants usage:
    # Old
    from bindu.extensions.x402.constants import X402_EXTENSION_URI
-   
+
    # New
    from bindu.settings import app_settings
    uri = app_settings.x402.extension_uri
@@ -179,8 +179,8 @@ For applications using removed Sentry wrappers:
 
 For database migrations:
    # Both formats now work automatically
-   DATABASE_URL=postgresql://user:pass@host/db alembic upgrade head
-   DATABASE_URL=postgresql+asyncpg://user:pass@host/db alembic upgrade head
+   DATABASE_URL=postgresql://<user_id>:<password>@host/db alembic upgrade head
+   DATABASE_URL=postgresql+asyncpg://<user_id>:<password>@host/db alembic upgrade head
 
 COMMIT DETAILS
 --------------

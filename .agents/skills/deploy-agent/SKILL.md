@@ -109,14 +109,14 @@ done
 # Run migrations for postgres backend
 if [ "$STORAGE_BACKEND" = "postgres" ]; then
     echo "==> Running database migrations..."
-    
+
     # Check current migration
     CURRENT=$(uv run alembic current 2>&1)
     echo "Current migration: $CURRENT"
-    
+
     # Upgrade to head
     uv run alembic upgrade head || { echo "❌ Migration failed"; exit 1; }
-    
+
     # Verify migration
     NEW_CURRENT=$(uv run alembic current 2>&1)
     echo "New migration: $NEW_CURRENT"
@@ -138,16 +138,16 @@ fi
 # Staging/Production deployment
 if [ "$ENVIRONMENT" != "local" ]; then
     echo "==> Deploying to $ENVIRONMENT..."
-    
+
     # Docker deployment
     if command -v docker &> /dev/null; then
         # Build image
         docker build -t bindu-agent:$ENVIRONMENT .
-        
+
         # Stop old container
         docker stop bindu-agent-$ENVIRONMENT 2>/dev/null || true
         docker rm bindu-agent-$ENVIRONMENT 2>/dev/null || true
-        
+
         # Start new container
         docker run -d \
             --name bindu-agent-$ENVIRONMENT \
@@ -157,7 +157,7 @@ if [ "$ENVIRONMENT" != "local" ]; then
             -e STORAGE_BACKEND="$STORAGE_BACKEND" \
             -e SCHEDULER_BACKEND="$SCHEDULER_BACKEND" \
             bindu-agent:$ENVIRONMENT
-        
+
         CONTAINER_ID=$(docker ps -qf "name=bindu-agent-$ENVIRONMENT")
         echo "Container ID: $CONTAINER_ID"
     else
@@ -166,7 +166,7 @@ if [ "$ENVIRONMENT" != "local" ]; then
         AGENT_PID=$!
         echo "Agent PID: $AGENT_PID"
     fi
-    
+
     sleep 10
 fi
 ```
@@ -191,7 +191,7 @@ while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
         echo "✅ Agent is healthy"
         break
     fi
-    
+
     RETRY_COUNT=$((RETRY_COUNT + 1))
     echo "Waiting... ($RETRY_COUNT/$MAX_RETRIES)"
     sleep 2
