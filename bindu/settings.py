@@ -3,10 +3,10 @@
 This module defines the configuration settings for the application using pydantic models.
 """
 
-from pydantic import Field, computed_field, BaseModel, HttpUrl
+from pydantic import Field, computed_field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from pydantic import AliasChoices
-from typing import Literal, Optional
+from typing import Literal
 
 
 class ProjectSettings(BaseSettings):
@@ -123,29 +123,43 @@ class NetworkSettings(BaseSettings):
         return f"http://{self.default_host}:{self.default_port}"
 
 
-class TunnelSettings(BaseSettings):
-    """FRP tunnel configuration settings."""
+class GrpcSettings(BaseSettings):
+    """gRPC server configuration settings."""
 
     model_config = SettingsConfigDict(
         env_file=".env",
-        env_prefix="TUNNEL__",
+        env_prefix="GRPC__",
         extra="allow",
     )
 
-    # Tunnel timeout (seconds)
-    timeout_seconds: int = 30
-
-    # Error message for tunnel failures
-    error_message: str = (
-        "Could not create tunnel. Please check the logs below for more information:"
+    enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("BINDU_GRPC_ENABLED", "GRPC_ENABLED"),
     )
-
-    # Default FRP server configuration
-    default_server_address: str = "142.132.241.44:7000"
-    default_tunnel_domain: str = "tunnel.getbindu.com"
-
-    # FRP client version
-    frpc_version: str = "0.61.0"
+    host: str = Field(
+        default="[::]",
+        validation_alias=AliasChoices("BINDU_GRPC_HOST", "GRPC_HOST"),
+    )
+    port: int = Field(
+        default=50051,
+        validation_alias=AliasChoices("BINDU_GRPC_PORT", "GRPC_PORT"),
+    )
+    max_workers: int = Field(
+        default=10,
+        validation_alias=AliasChoices("BINDU_GRPC_MAX_WORKERS", "GRPC_MAX_WORKERS"),
+    )
+    tls_enabled: bool = Field(
+        default=False,
+        validation_alias=AliasChoices("BINDU_GRPC_TLS_ENABLED", "GRPC_TLS_ENABLED"),
+    )
+    tls_cert_path: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("BINDU_GRPC_TLS_CERT_PATH", "GRPC_TLS_CERT_PATH"),
+    )
+    tls_key_path: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("BINDU_GRPC_TLS_KEY_PATH", "GRPC_TLS_KEY_PATH"),
+    )
 
 
 class DeploymentSettings(BaseSettings):
@@ -475,7 +489,11 @@ CRITICAL
 class AuthSettings(BaseSettings):
     """Authentication and authorization configuration settings.
 
-    Uses Ory Hydra as the authentication provider.
+    Supports multiple authentication providers:
+    - auth0: Auth0 (default)
+    - cognito: AWS Cognito (future)
+    - azure: Azure AD (future)
+    - custom: Custom JWT provider (future)
     """
 
     model_config = SettingsConfigDict(
@@ -488,22 +506,35 @@ class AuthSettings(BaseSettings):
     enabled: bool = False
 
     # Authentication provider
-    provider: str = "hydra"
+    provider: str = "auth0"  # Options: auth0, cognito, azure, custom
+
+    # Auth0 Configuration
+    domain: str = ""
+    audience: str = ""
+    algorithms: list[str] = ["RS256"]
+    issuer: str = ""
+
+    # JWKS Configuration
+    jwks_uri: str = ""
+    jwks_cache_ttl: int = 3600  # Cache JWKS for 1 hour
 
     # Token Validation
-    algorithms: list[str] = ["RS256"]
     leeway: int = 10  # Clock skew tolerance in seconds
+
+    # AWS Cognito Configuration (future use)
+    region: str = ""  # e.g., "us-east-1"
+    user_pool_id: str = ""  # e.g., "us-east-1_XXXXXXXXX"
+    app_client_id: str = ""  # Cognito app client ID
+
+    # Azure AD Configuration (future use)
+    tenant_id: str = ""  # Azure AD tenant ID
+    client_id: str = ""  # Azure AD application ID
 
     # Public Endpoints (no authentication required)
     public_endpoints: list[str] = [
         "/.well-known/agent.json",
-        "/.well-known/*",
         "/did/resolve",
         "/agent/info",
-        "/agent/skills",
-        "/agent/skills/*",
-        "/health",
-        "/metrics",
         "/agent.html",
         "/chat.html",
         "/storage.html",
@@ -522,99 +553,6 @@ class AuthSettings(BaseSettings):
         "contexts/list": ["agent:read"],
         "tasks/feedback": ["agent:write"],
     }
-
-
-# ============================================================================
-# Ory Configuration Models
-# ============================================================================
-
-
-class OAuthProviderConfig(BaseModel):
-    """OAuth provider configuration for external services."""
-
-    name: str = Field(..., description="Provider name (notion, google, github, etc.)")
-    client_id: str = Field(..., description="OAuth client ID")
-    client_secret: str = Field(..., description="OAuth client secret")
-    auth_url: HttpUrl = Field(..., description="Authorization URL")
-    token_url: HttpUrl = Field(..., description="Token URL")
-    userinfo_url: Optional[HttpUrl] = Field(None, description="User info URL")
-    scope: str = Field(..., description="Default scope")
-    redirect_uri: HttpUrl = Field(..., description="Redirect URI")
-
-
-# ============================================================================
-# Hydra Settings
-# ============================================================================
-
-
-class HydraSettings(BaseSettings):
-    """Ory Hydra OAuth2 authentication configuration settings.
-
-    Hydra provides OAuth2/OIDC authentication for securing Bindu APIs
-    and enabling agent-to-agent authentication.
-    """
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="HYDRA__",
-        extra="allow",
-    )
-
-    # Enable/disable Hydra authentication
-    enabled: bool = False
-
-    # Hydra API endpoints
-    admin_url: str = "https://hydra-admin.getbindu.com"
-    public_url: str = "https://hydra.getbindu.com"
-
-    # Connection settings
-    timeout: int = 10  # Request timeout in seconds
-    verify_ssl: bool = True  # Verify SSL certificates
-    max_retries: int = 3  # Maximum retry attempts
-
-    # Token cache settings
-    cache_ttl: int = 300  # Token introspection cache TTL (5 minutes)
-    max_cache_size: int = 1000  # Maximum cache entries
-
-    # Auto-registration settings
-    auto_register_agents: bool = True  # Auto-register agents as OAuth clients
-    agent_client_prefix: str = "agent-"  # Prefix for agent client IDs
-
-    # Default OAuth2 scopes for agents
-    default_agent_scopes: list[str] = [
-        "openid",
-        "offline",
-        "agent:read",
-        "agent:write",
-    ]
-
-    # Default grant types for agents
-    default_grant_types: list[str] = [
-        "client_credentials",  # M2M authentication
-        "authorization_code",  # User authentication
-        "refresh_token",  # Token refresh
-    ]
-
-    # Public endpoints (no authentication required)
-    public_endpoints: list[str] = [
-        "/.well-known/agent.json",
-        "/.well-known/*",
-        "/did/resolve",
-        "/agent/info",
-        "/agent/skills",
-        "/agent/skills/*",
-        "/health",
-        "/metrics",
-        "/agent.html",
-        "/chat.html",
-        "/storage.html",
-        "/payment-capture",
-        "/js/*",
-        "/css/*",
-        "/docs",
-        "/favicon.ico",
-        "/oauth/*",  # OAuth callback endpoints
-    ]
 
 
 class StorageSettings(BaseSettings):
@@ -695,11 +633,6 @@ class SchedulerSettings(BaseSettings):
     queue_name: str = "bindu:tasks"  # Can keep default queue name
     max_connections: int = 10  # Connection pool setting
     retry_on_timeout: bool = True  # Retry behavior setting
-    poll_timeout: int = Field(
-        default=1,
-        validation_alias=AliasChoices("poll_timeout", "REDIS_POLL_TIMEOUT"),
-        description="Timeout in seconds for Redis blpop operations. Higher values reduce API calls but increase task start latency.",
-    )
 
 
 class RetrySettings(BaseSettings):
@@ -773,81 +706,6 @@ class NegotiationSettings(BaseSettings):
     keyword_weight: float = 0.3  # Weight for keyword score in hybrid matching
     embedding_batch_size: int = 32
     embedding_cache_size: int = 1000  # Max task embeddings to cache
-
-
-class VaultSettings(BaseSettings):
-    """HashiCorp Vault configuration for OAuth token storage."""
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="VAULT__",
-        extra="allow",
-    )
-
-    # Vault connection
-    url: str = Field(
-        default="http://localhost:8200",
-        validation_alias=AliasChoices("VAULT__URL", "VAULT_ADDR"),
-    )
-    token: str = Field(
-        default="",
-        validation_alias=AliasChoices("VAULT__TOKEN", "VAULT_TOKEN"),
-    )
-
-    # Enable/disable Vault
-    enabled: bool = False
-
-
-class OAuthSettings(BaseSettings):
-    """OAuth provider configuration for user credential management (v0)."""
-
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_prefix="OAUTH__",
-        extra="allow",
-    )
-
-    # Base URL for OAuth callbacks
-    callback_base_url: str = Field(
-        default="http://localhost:3773",
-        description="Base URL for OAuth callbacks (e.g., https://your-domain.com)",
-    )
-
-    # Notion OAuth
-    notion_client_id: str = Field(
-        default="",
-        validation_alias=AliasChoices("OAUTH__NOTION_CLIENT_ID", "NOTION_CLIENT_ID"),
-    )
-    notion_client_secret: str = Field(
-        default="",
-        validation_alias=AliasChoices(
-            "OAUTH__NOTION_CLIENT_SECRET", "NOTION_CLIENT_SECRET"
-        ),
-    )
-
-    # Google OAuth (for Gmail)
-    google_client_id: str = Field(
-        default="",
-        validation_alias=AliasChoices("OAUTH__GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_ID"),
-    )
-    google_client_secret: str = Field(
-        default="",
-        validation_alias=AliasChoices(
-            "OAUTH__GOOGLE_CLIENT_SECRET", "GOOGLE_CLIENT_SECRET"
-        ),
-    )
-
-    # GitHub OAuth
-    github_client_id: str = Field(
-        default="",
-        validation_alias=AliasChoices("OAUTH__GITHUB_CLIENT_ID", "GITHUB_CLIENT_ID"),
-    )
-    github_client_secret: str = Field(
-        default="",
-        validation_alias=AliasChoices(
-            "OAUTH__GITHUB_CLIENT_SECRET", "GITHUB_CLIENT_SECRET"
-        ),
-    )
 
 
 class SentrySettings(BaseSettings):
@@ -943,16 +801,13 @@ class Settings(BaseSettings):
     project: ProjectSettings = ProjectSettings()
     did: DIDSettings = DIDSettings()
     network: NetworkSettings = NetworkSettings()
-    tunnel: TunnelSettings = TunnelSettings()
+    grpc: GrpcSettings = GrpcSettings()
     deployment: DeploymentSettings = DeploymentSettings()
     logging: LoggingSettings = LoggingSettings()
     observability: ObservabilitySettings = ObservabilitySettings()
     x402: X402Settings = X402Settings()
     agent: AgentSettings = AgentSettings()
     auth: AuthSettings = AuthSettings()
-    hydra: HydraSettings = HydraSettings()
-    vault: VaultSettings = VaultSettings()
-    oauth: OAuthSettings = OAuthSettings()
     storage: StorageSettings = StorageSettings()
     scheduler: SchedulerSettings = SchedulerSettings()
     retry: RetrySettings = RetrySettings()
