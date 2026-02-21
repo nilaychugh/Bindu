@@ -57,13 +57,14 @@ def sanitize_did_for_schema(did: str) -> str:
         # Generate a hash suffix for uniqueness
         hash_suffix = hashlib.sha256(schema_candidate.encode()).hexdigest()[:8]
         # Truncate to fit hash and underscore, keeping total 63 characters
-        truncated = schema_candidate[:54]
+        # 63 total - 1 (underscore) - 8 (hash) = 54 characters for the prefix
+        max_prefix_length = 63 - 1 - 8
+        truncated = schema_candidate[:max_prefix_length]
         final_schema_name = f"{truncated}_{hash_suffix}"
     else:
         final_schema_name = schema_candidate
 
     return final_schema_name
-
 
 
 async def create_schema_if_not_exists(

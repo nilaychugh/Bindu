@@ -1,3 +1,12 @@
+# |---------------------------------------------------------|
+# |                                                         |
+# |                 Give Feedback / Get Help                |
+# | https://github.com/getbindu/Bindu/issues/new/choose    |
+# |                                                         |
+# |---------------------------------------------------------|
+#
+#  Thank you users! We ❤️ you! - 🌻
+
 """Sentry integration for error tracking and performance monitoring.
 
 This module provides Sentry initialization and configuration for the Bindu framework.
@@ -11,7 +20,7 @@ Features:
 - Release tracking for deployment monitoring
 - Custom tags and context for filtering
 - PII scrubbing for privacy compliance
-
+"""
 
 from __future__ import annotations as _annotations
 

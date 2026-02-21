@@ -1,7 +1,5 @@
 """Security utilities for storage operations."""
 
-import re
-
 
 def mask_database_url(url: str) -> str:
     """Mask password in database URL for safe logging.

@@ -12,6 +12,7 @@ from bindu.settings import app_settings
 # Import the sanitize_did_for_schema for schema utility tests
 from bindu.utils.schema_manager import sanitize_did_for_schema
 
+
 class TestDIDAgentExtension:
     """Test suite for DID Agent Extension."""
 
@@ -49,7 +50,7 @@ class TestDIDAgentExtension:
             ("_abc:def", "_abc_def"),
             # Already starts with a letter is preserved
             ("abc:def:ghi", "abc_def_ghi"),
-        ]
+        ],
     )
     def test_sanitize_did_for_schema_basic(self, did, expected):
         """Test DID schema sanitization - lowercase and underscore rules, digit prefix."""
@@ -82,7 +83,10 @@ class TestDIDAgentExtension:
         "orig,expected_prefix",
         [
             # Truncation should still apply even if prefix is added
-            ("8" + "b" * 70, "schema_8" + "b" * 45),  # schema_ + 8 + 45*'b' = 54 chars before _hash
+            (
+                "8" + "b" * 70,
+                "schema_8" + "b" * 46,
+            ),  # schema_ (7) + 8 (1) + 46*'b' = 54 chars before _hash
         ],
     )
     def test_schema_prefix_and_truncation(self, orig, expected_prefix):
