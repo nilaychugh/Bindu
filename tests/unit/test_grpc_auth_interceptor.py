@@ -9,9 +9,8 @@ import grpc
 import jwt
 import pytest
 
-from bindu.server.grpc.auth import GrpcAuthInterceptor
+from bindu.server.grpc.auth import GrpcAuthInterceptor, HydraTokenValidator
 from bindu.settings import AuthSettings
-from bindu.utils.auth_utils import JWTValidator
 
 
 class DummyAbortError(Exception):
@@ -83,7 +82,7 @@ async def test_grpc_auth_interceptor_invalid_token_aborts(monkeypatch):
     def _raise_invalid(self, _token):  # noqa: ARG001
         raise jwt.InvalidTokenError("invalid")
 
-    monkeypatch.setattr(JWTValidator, "validate_token", _raise_invalid)
+    monkeypatch.setattr(HydraTokenValidator, "validate_token", _raise_invalid)
 
     interceptor = GrpcAuthInterceptor(AuthSettings())
     handler = _make_handler(should_raise=True)
@@ -111,7 +110,7 @@ async def test_grpc_auth_interceptor_valid_token_allows(monkeypatch):
     def _validate_ok(self, _token):  # noqa: ARG001
         return {"sub": "test-user"}
 
-    monkeypatch.setattr(JWTValidator, "validate_token", _validate_ok)
+    monkeypatch.setattr(HydraTokenValidator, "validate_token", _validate_ok)
 
     interceptor = GrpcAuthInterceptor(AuthSettings())
     handler = _make_handler()

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import inspect
 from typing import Any
 
 import grpc
 from grpc import aio as grpc_aio  # type: ignore[attr-defined]
 
-from bindu.settings import AuthSettings
-from bindu.utils.auth_utils import JWTValidator, extract_bearer_token
+from bindu.auth.hydra.client import HydraClient
+from bindu.settings import AuthSettings, HydraSettings
 from bindu.utils.logging import get_logger
 
 logger = get_logger("bindu.server.grpc.auth")
@@ -26,6 +27,40 @@ def _metadata_value(metadata: Iterable[tuple[str, Any]] | None, key: str) -> str
             return meta_value.decode("utf-8", errors="replace")
         return str(meta_value)
     return None
+
+
+def _extract_bearer_token(authorization_header: str | None) -> str | None:
+    if not authorization_header:
+        return None
+    parts = authorization_header.strip().split(" ", 1)
+    if len(parts) != 2:
+        return None
+    scheme, token = parts
+    if scheme.lower() != "bearer":
+        return None
+    token = token.strip()
+    return token or None
+
+
+class HydraTokenValidator:
+    """Validate access tokens via Ory Hydra introspection."""
+
+    def __init__(self, auth_config: AuthSettings, hydra_config: HydraSettings) -> None:
+        """Initialize the HydraTokenValidator with auth and Hydra settings."""
+        self._auth_config = auth_config
+        self._hydra_client = HydraClient(
+            admin_url=hydra_config.admin_url,
+            public_url=hydra_config.public_url,
+            timeout=hydra_config.timeout,
+            verify_ssl=hydra_config.verify_ssl,
+        )
+
+    async def validate_token(self, token: str) -> dict[str, Any]:
+        """Validate an access token via Hydra introspection and return the introspection result."""
+        introspection = await self._hydra_client.introspect_token(token)
+        if not introspection.get("active", False):
+            raise ValueError("Token is not active")
+        return introspection
 
 
 def _abort_handler(
@@ -86,16 +121,21 @@ class GrpcAuthInterceptor(grpc_aio.ServerInterceptor):
     def __init__(
         self,
         auth_config: AuthSettings,
-        validator: JWTValidator | None = None,
+        hydra_config: HydraSettings | None = None,
+        validator: HydraTokenValidator | None = None,
     ) -> None:
         """Initialize the interceptor with auth settings and JWT validator.
 
         Args:
             auth_config: Authentication configuration for gRPC requests.
-            validator: Optional JWT validator override.
+            hydra_config: Optional Hydra configuration override.
+            validator: Optional token validator override.
         """
         self._auth_config = auth_config
-        self._validator = validator or JWTValidator(auth_config)
+        self._validator = validator or HydraTokenValidator(
+            auth_config,
+            hydra_config or HydraSettings(),
+        )
 
     async def intercept_service(self, continuation, handler_call_details):
         """Authorize gRPC calls and return an authenticated handler.
@@ -115,7 +155,7 @@ class GrpcAuthInterceptor(grpc_aio.ServerInterceptor):
         authorization = _metadata_value(
             handler_call_details.invocation_metadata, "authorization"
         )
-        token = extract_bearer_token(authorization)
+        token = _extract_bearer_token(authorization)
         if not token:
             logger.warning("Missing authorization metadata for gRPC call %s", method)
             return _abort_handler(
@@ -125,7 +165,9 @@ class GrpcAuthInterceptor(grpc_aio.ServerInterceptor):
             )
 
         try:
-            self._validator.validate_token(token)
+            validation_result = self._validator.validate_token(token)
+            if inspect.isawaitable(validation_result):
+                await validation_result
         except Exception as exc:
             logger.warning(
                 "Invalid authorization token for gRPC call %s: %s",

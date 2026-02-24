@@ -16,12 +16,12 @@ import pytest
 from bindu.common.models import AgentManifest
 from bindu.grpc import a2a_pb2  # type: ignore[possibly-unbound-import]
 from bindu.server.applications import BinduApplication
+from bindu.server.grpc.auth import HydraTokenValidator
 from bindu.server.grpc.server import GrpcServer
 from bindu.server.scheduler.memory_scheduler import InMemoryScheduler
 from bindu.server.storage.memory_storage import InMemoryStorage
 from bindu.server.task_manager import TaskManager
 from bindu.settings import app_settings
-from bindu.utils.auth_utils import JWTValidator
 from tests.mocks import MockAgent, MockManifest
 from tests.utils import get_deterministic_uuid
 
@@ -260,7 +260,7 @@ async def test_grpc_auth_metadata_enforced(
     def _validate_ok(self, _token):  # noqa: ARG001
         return {"sub": "test-user"}
 
-    monkeypatch.setattr(JWTValidator, "validate_token", _validate_ok)
+    monkeypatch.setattr(HydraTokenValidator, "validate_token", _validate_ok)
 
     message_id = get_deterministic_uuid(7)
     context_id = get_deterministic_uuid(8)

@@ -24,6 +24,7 @@ from uuid import UUID, uuid4
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
+from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 from starlette.routing import Route
@@ -40,7 +41,7 @@ from bindu.common.models import (
 from bindu.settings import app_settings
 from bindu.utils.retry import execute_with_retry
 
-from .middleware import Auth0Middleware
+from .middleware import HydraMiddleware
 from .scheduler.base import Scheduler
 from .storage.base import Storage
 from .task_manager import TaskManager
@@ -69,6 +70,7 @@ class BinduApplication(Starlette):
         auth_enabled: bool = False,
         telemetry_config: TelemetryConfig | None = None,
         sentry_config: SentryConfig | None = None,
+        cors_origins: list[str] | None = None,
         grpc_enabled: bool | None = None,
         grpc_host: str | None = None,
         grpc_port: int | None = None,
@@ -91,9 +93,10 @@ class BinduApplication(Starlette):
             lifespan: Optional custom lifespan
             routes: Optional custom routes
             middleware: Optional middleware
-            auth_enabled: Enable Auth0 authentication middleware
+            auth_enabled: Enable Hydra authentication middleware
             telemetry_config: Optional telemetry configuration (defaults to disabled)
             sentry_config: Optional Sentry configuration (defaults to disabled)
+            cors_origins: Optional CORS allowed origins
             grpc_enabled: Override gRPC enabled setting
             grpc_host: Override gRPC host setting
             grpc_port: Override gRPC port setting
@@ -111,6 +114,7 @@ class BinduApplication(Starlette):
         self._scheduler_config = scheduler_config
         self._telemetry_config = telemetry_config or TelemetryConfig()
         self._sentry_config = sentry_config or SentryConfig()
+        self._cors_origins = cors_origins
         self._grpc_enabled_override = grpc_enabled
         self._grpc_host_override = grpc_host
         self._grpc_port_override = grpc_port
@@ -118,6 +122,11 @@ class BinduApplication(Starlette):
         self._grpc_tls_enabled_override = grpc_tls_enabled
         self._grpc_tls_cert_path_override = grpc_tls_cert_path
         self._grpc_tls_key_path_override = grpc_tls_key_path
+        self._grpc_enabled = (
+            grpc_enabled if grpc_enabled is not None else app_settings.grpc.enabled
+        )
+        self._grpc_host = grpc_host if grpc_host is not None else app_settings.grpc.host
+        self._grpc_port = grpc_port if grpc_port is not None else app_settings.grpc.port
 
         # Create default lifespan if none provided
         if lifespan is None:
@@ -139,6 +148,7 @@ class BinduApplication(Starlette):
             payment_requirements_for_middleware,
             manifest,
             auth_enabled,
+            cors_origins,
         )
 
         super().__init__(
@@ -485,6 +495,10 @@ class BinduApplication(Starlette):
                         else app_settings.grpc.tls_key_path
                     )
 
+                    app._grpc_enabled = grpc_enabled
+                    app._grpc_host = grpc_host
+                    app._grpc_port = grpc_port
+
                     grpc_server = None
                     if grpc_enabled:
                         from bindu.server.grpc import GrpcServer
@@ -607,8 +621,9 @@ class BinduApplication(Starlette):
         payment_requirements: list[Any] | None,
         manifest: AgentManifest,
         auth_enabled: bool,
+        cors_origins: list[str] | None,
     ) -> list[Middleware]:
-        """Set up middleware chain with X402 and Auth0 middleware.
+        """Set up middleware chain with X402 and Hydra middleware.
 
         Args:
             middleware: Custom middleware to include
@@ -616,6 +631,7 @@ class BinduApplication(Starlette):
             payment_requirements: Payment requirements for X402
             manifest: Agent manifest
             auth_enabled: Whether authentication is enabled
+            cors_origins: Allowed CORS origins
 
         Returns:
             List of configured middleware
@@ -647,6 +663,17 @@ class BinduApplication(Starlette):
             # Add auth middleware after X402 (if present)
             middleware_list.insert(1 if x402_ext else 0, auth_middleware)
 
+        if cors_origins:
+            middleware_list.append(
+                Middleware(
+                    CORSMiddleware,
+                    allow_origins=cors_origins,
+                    allow_credentials=True,
+                    allow_methods=["*"],
+                    allow_headers=["*"],
+                )
+            )
+
         return middleware_list
 
     def _create_auth_middleware(self) -> Middleware:
@@ -660,14 +687,14 @@ class BinduApplication(Starlette):
         """
         provider = app_settings.auth.provider.lower()
 
-        if provider == "auth0":
-            logger.info("Auth0 authentication enabled")
-            return Middleware(Auth0Middleware, auth_config=app_settings.auth)
+        if provider == "hydra":
+            logger.info("Hydra authentication enabled")
+            return Middleware(HydraMiddleware, auth_config=app_settings.auth)
         else:
             logger.error(f"Unknown authentication provider: {provider}")
             raise ValueError(
                 f"Unknown authentication provider: '{provider}'. "
-                f"Supported providers: auth0, cognito, azure, custom"
+                f"Supported providers: hydra"
             )
 
     def _setup_payment_session_manager(
