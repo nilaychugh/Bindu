@@ -1239,6 +1239,8 @@ For tasks that run longer than typical request timeouts (minutes, hours, or days
 
 📖 **[Complete Documentation](docs/long-running-task-notifications.md)** - Detailed guide with architecture, security, examples, and troubleshooting.
 
+📖 **[gRPC Transport Guide](docs/GRPC.md)** - Setup, dual-protocol usage, client example, auth/TLS, RPC method coverage, and troubleshooting.
+
 ---
 
 <br/>

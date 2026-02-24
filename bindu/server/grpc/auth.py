@@ -157,7 +157,7 @@ class GrpcAuthInterceptor(grpc_aio.ServerInterceptor):
         )
         token = _extract_bearer_token(authorization)
         if not token:
-            logger.warning("Missing authorization metadata for gRPC call %s", method)
+            logger.warning(f"Missing authorization metadata for gRPC call {method}")
             return _abort_handler(
                 handler,
                 grpc.StatusCode.UNAUTHENTICATED,
@@ -169,11 +169,7 @@ class GrpcAuthInterceptor(grpc_aio.ServerInterceptor):
             if inspect.isawaitable(validation_result):
                 await validation_result
         except Exception as exc:
-            logger.warning(
-                "Invalid authorization token for gRPC call %s: %s",
-                method,
-                exc,
-            )
+            logger.warning(f"Invalid authorization token for gRPC call {method}: {exc}")
             return _abort_handler(
                 handler,
                 grpc.StatusCode.UNAUTHENTICATED,

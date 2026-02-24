@@ -314,3 +314,40 @@ async def test_grpc_stream_message_error():
 
             assert failed_updates
             assert "error" in failed_updates[0].metadata
+
+
+@pytest.mark.asyncio
+async def test_grpc_get_task_success():
+    storage = InMemoryStorage()
+    async with InMemoryScheduler() as scheduler:
+        async with TaskManager(
+            scheduler=scheduler, storage=storage, manifest=None
+        ) as tm:
+            servicer = A2AServicer(tm)
+
+            message = create_test_message(text="Fetch me")
+            await storage.submit_task(message["context_id"], message)
+
+            request = a2a_pb2.TaskQueryRequest(task_id=str(message["task_id"]))
+            context = DummyContext()
+            response = await servicer.GetTask(request, context)
+
+            assert context.code is None
+            assert response.id == str(message["task_id"])
+
+
+@pytest.mark.asyncio
+async def test_grpc_healthcheck_serving():
+    storage = InMemoryStorage()
+    async with InMemoryScheduler() as scheduler:
+        async with TaskManager(
+            scheduler=scheduler, storage=storage, manifest=None
+        ) as tm:
+            servicer = A2AServicer(tm)
+
+            request = a2a_pb2.HealthCheckRequest(service="a2a")
+            context = DummyContext()
+            response = await servicer.HealthCheck(request, context)
+
+            assert context.code is None
+            assert response.status == a2a_pb2.HealthCheckResponse.SERVING

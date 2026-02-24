@@ -85,7 +85,9 @@ class GrpcServer:
         if app_settings.auth.enabled:
             from .auth import GrpcAuthInterceptor
 
-            interceptors.append(GrpcAuthInterceptor(app_settings.auth))
+            interceptors.append(
+                GrpcAuthInterceptor(app_settings.auth, hydra_config=app_settings.hydra)
+            )
             logger.info("gRPC auth interceptor enabled")
 
         # Create gRPC server
